@@ -59,6 +59,7 @@ interface AppContextType {
 
   updateUserProfile: (updates: { name?: string; title?: string; avatarUrl?: string }) => void;
   resetUserAvatar: () => void;
+  getCustomAvatar: (role: UserRole, email?: string) => string;
   isProfileModalOpen: boolean;
   setIsProfileModalOpen: (open: boolean) => void;
 
@@ -158,9 +159,13 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
 ];
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Helper to retrieve custom uploaded avatar per role from localStorage
-  const getCustomAvatar = (role: UserRole): string => {
+  // Helper to retrieve custom uploaded avatar per role or email from localStorage
+  const getCustomAvatar = (role: UserRole, email?: string): string => {
     try {
+      if (email) {
+        const savedByEmail = localStorage.getItem(`dealflow360_avatar_${email.trim().toLowerCase()}`);
+        if (savedByEmail) return savedByEmail;
+      }
       const saved = localStorage.getItem(`dealflow360_avatar_${role}`);
       if (saved) return saved;
     } catch {
@@ -183,7 +188,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const user: AuthUser = parsed.currentUser;
       if (user) {
         const role: UserRole = user.role || parsed.userRole || 'sales_rep';
-        const customAvatar = getCustomAvatar(role);
+        const customAvatar = getCustomAvatar(role, user.email);
         return {
           ...user,
           avatarUrl: customAvatar || user.avatarUrl || ROLE_DEFAULT_AVATARS[role],
@@ -205,15 +210,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const setUserRole = (role: UserRole) => {
     setUserRoleState(role);
-    const matched = DEMO_USERS.find((u) => u.role === role);
-    const customAvatar = getCustomAvatar(role);
+    const matched = users?.find((u) => u.role === role) || DEMO_USERS.find((u) => u.role === role);
+    const customAvatar = getCustomAvatar(role, matched?.email);
     const updatedUser: AuthUser = {
       email: matched?.email || `${role}@dealflow360.com`,
       name: matched?.name || role.replace('_', ' '),
       role,
       title: matched?.title || 'Staff Specialist',
       companyId: matched?.companyId,
-      avatarUrl: customAvatar,
+      avatarUrl: customAvatar || matched?.avatarUrl || ROLE_DEFAULT_AVATARS[role],
     };
     setCurrentUser(updatedUser);
     localStorage.setItem(
@@ -241,7 +246,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const login = (email: string, _password: string, role?: UserRole) => {
     const assignedRole = role || 'sales_rep';
     const matched = findDemoUser(email) || DEMO_USERS.find((u) => u.role === assignedRole);
-    const customAvatar = getCustomAvatar(assignedRole);
+    const customAvatar = getCustomAvatar(assignedRole, email);
 
     const user: AuthUser = {
       email,
@@ -265,7 +270,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const loginAsCustomer = (token: string) => {
     const company = SEED_COMPANIES.find((c) => c.portalToken === token) || SEED_COMPANIES[0];
-    const customAvatar = getCustomAvatar('customer');
+    const customAvatar = getCustomAvatar('customer', company.contactEmail);
     const user: AuthUser = {
       email: company.contactEmail,
       name: `${company.name} Procurement`,
@@ -297,44 +302,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       window.history.replaceState(null, '', '#/landing');
       scrollToTopGlobal();
     }
-  };
-
-  const updateUserProfile = (updates: { name?: string; title?: string; avatarUrl?: string }) => {
-    if (!currentUser) return;
-    const updated: AuthUser = {
-      ...currentUser,
-      ...(updates.name ? { name: updates.name } : {}),
-      ...(updates.title ? { title: updates.title } : {}),
-      ...(updates.avatarUrl ? { avatarUrl: updates.avatarUrl } : {}),
-    };
-    setCurrentUser(updated);
-    if (updates.avatarUrl) {
-      try {
-        localStorage.setItem(`dealflow360_avatar_${currentUser.role}`, updates.avatarUrl);
-      } catch (e) {
-        console.error('Failed to save avatar to localStorage:', e);
-      }
-    }
-    localStorage.setItem(
-      AUTH_STORAGE_KEY,
-      JSON.stringify({ isAuthenticated, currentUser: updated, userRole: currentUser.role })
-    );
-  };
-
-  const resetUserAvatar = () => {
-    if (!currentUser) return;
-    try {
-      localStorage.removeItem(`dealflow360_avatar_${currentUser.role}`);
-    } catch {
-      // ignore
-    }
-    const defaultAv = ROLE_DEFAULT_AVATARS[currentUser.role] || '';
-    const updated: AuthUser = { ...currentUser, avatarUrl: defaultAv };
-    setCurrentUser(updated);
-    localStorage.setItem(
-      AUTH_STORAGE_KEY,
-      JSON.stringify({ isAuthenticated, currentUser: updated, userRole: currentUser.role })
-    );
   };
 
   // State Persistence Initialization
@@ -491,7 +458,90 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     initialSaved?.customerPortalToken || 'token_acme'
   );
 
-  const [users, setUsers] = useState<DemoUser[]>(initialSaved?.users || DEMO_USERS);
+  const [users, setUsers] = useState<DemoUser[]>(() => {
+    const base = initialSaved?.users || DEMO_USERS;
+    return base.map((u: DemoUser) => {
+      const customAv = getCustomAvatar(u.role);
+      return {
+        ...u,
+        avatarUrl: customAv || u.avatarUrl || ROLE_DEFAULT_AVATARS[u.role],
+      };
+    });
+  });
+
+  const updateUserProfile = (updates: { name?: string; title?: string; avatarUrl?: string }) => {
+    if (!currentUser) return;
+    const updated: AuthUser = {
+      ...currentUser,
+      ...(updates.name ? { name: updates.name } : {}),
+      ...(updates.title ? { title: updates.title } : {}),
+      ...(updates.avatarUrl ? { avatarUrl: updates.avatarUrl } : {}),
+    };
+    setCurrentUser(updated);
+
+    // Synchronize users state so instant role switcher and login screen update immediately
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.role === currentUser.role || u.email === currentUser.email) {
+          return {
+            ...u,
+            ...(updates.name ? { name: updates.name } : {}),
+            ...(updates.title ? { title: updates.title } : {}),
+            ...(updates.avatarUrl ? { avatarUrl: updates.avatarUrl } : {}),
+          };
+        }
+        return u;
+      })
+    );
+
+    if (updates.avatarUrl) {
+      try {
+        localStorage.setItem(`dealflow360_avatar_${currentUser.role}`, updates.avatarUrl);
+        if (currentUser.email) {
+          localStorage.setItem(`dealflow360_avatar_${currentUser.email.trim().toLowerCase()}`, updates.avatarUrl);
+        }
+      } catch (e) {
+        console.error('Failed to save avatar to localStorage:', e);
+      }
+    }
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated, currentUser: updated, userRole: currentUser.role })
+    );
+  };
+
+  const resetUserAvatar = () => {
+    if (!currentUser) return;
+    try {
+      localStorage.removeItem(`dealflow360_avatar_${currentUser.role}`);
+      if (currentUser.email) {
+        localStorage.removeItem(`dealflow360_avatar_${currentUser.email.trim().toLowerCase()}`);
+      }
+    } catch {
+      // ignore
+    }
+    const defaultAv = ROLE_DEFAULT_AVATARS[currentUser.role] || '';
+    const updated: AuthUser = { ...currentUser, avatarUrl: defaultAv };
+    setCurrentUser(updated);
+
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.role === currentUser.role || u.email === currentUser.email) {
+          return {
+            ...u,
+            avatarUrl: defaultAv,
+          };
+        }
+        return u;
+      })
+    );
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated, currentUser: updated, userRole: currentUser.role })
+    );
+  };
+
   const [companies, setCompanies] = useState<Company[]>(initialSaved?.companies || SEED_COMPANIES);
   const [products, setProducts] = useState<Product[]>(() => {
     if (!initialSaved?.products) return SEED_PRODUCTS;
@@ -1532,6 +1582,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         logout,
         updateUserProfile,
         resetUserAvatar,
+        getCustomAvatar,
         isProfileModalOpen,
         setIsProfileModalOpen,
         activeView,

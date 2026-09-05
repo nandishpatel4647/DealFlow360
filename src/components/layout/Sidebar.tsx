@@ -217,6 +217,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="w-9 h-9 rounded-full ring-2 ring-blue-500/20 shadow-xs overflow-hidden bg-slate-100 flex items-center justify-center border border-slate-300">
                   {currentUser?.avatarUrl ? (
                     <img
+                      key={currentUser.avatarUrl}
                       src={currentUser.avatarUrl}
                       alt={currentUser.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-200"

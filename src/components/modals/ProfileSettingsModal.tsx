@@ -23,8 +23,10 @@ export const ProfileSettingsModal: React.FC = () => {
     setUserRole,
     updateUserProfile,
     resetUserAvatar,
+    getCustomAvatar,
     isProfileModalOpen,
     setIsProfileModalOpen,
+    users,
   } = useAppStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,7 +69,7 @@ export const ProfileSettingsModal: React.FC = () => {
     reader.onload = () => {
       const dataUrl = reader.result as string;
       updateUserProfile({ avatarUrl: dataUrl });
-      showToast('Custom profile photo uploaded successfully!');
+      showToast('Custom profile photo uploaded & synchronized across platform!');
     };
     reader.readAsDataURL(file);
   };
@@ -84,21 +86,21 @@ export const ProfileSettingsModal: React.FC = () => {
     showToast('Profile details updated successfully!');
   };
 
-  const rolesList: { role: UserRole; label: string; name: string; title: string; color: string }[] = [
-    { role: 'sales_rep', label: 'Sales Rep', name: 'P. Mehta', title: 'Sales Representative', color: 'bg-blue-600' },
-    { role: 'sales_manager', label: 'Sales Manager', name: 'M. Shah', title: 'Sales Manager', color: 'bg-purple-600' },
-    { role: 'finance', label: 'Finance & Ops', name: 'R. Iyer', title: 'Finance & Operations Lead', color: 'bg-emerald-600' },
-    { role: 'customer', label: 'Customer Portal', name: 'Acme Procurement', title: 'Client Account (Acme Corp)', color: 'bg-indigo-600' },
-    { role: 'admin', label: 'Administrator', name: 'System Admin', title: 'System Administrator', color: 'bg-slate-700' },
+  const rolesList: { role: UserRole; label: string; name: string; title: string; color: string; email: string }[] = [
+    { role: 'sales_rep', label: 'Sales Rep', name: 'P. Mehta', title: 'Sales Representative', color: 'bg-blue-600', email: 'sales@dealflow360.com' },
+    { role: 'sales_manager', label: 'Sales Manager', name: 'M. Shah', title: 'Sales Manager', color: 'bg-purple-600', email: 'manager@dealflow360.com' },
+    { role: 'finance', label: 'Finance & Ops', name: 'R. Iyer', title: 'Finance & Operations Lead', color: 'bg-emerald-600', email: 'finance@dealflow360.com' },
+    { role: 'customer', label: 'Customer Portal', name: 'Acme Procurement', title: 'Client Account (Acme Corp)', color: 'bg-indigo-600', email: 'customer@dealflow360.com' },
+    { role: 'admin', label: 'Administrator', name: 'System Admin', title: 'System Administrator', color: 'bg-slate-700', email: 'admin@dealflow360.com' },
   ];
 
   const currentRoleInfo = rolesList.find((r) => r.role === userRole) || rolesList[0];
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-slate-900 to-blue-950 p-6 text-white flex items-center justify-between border-b border-white/10">
+        <div className="bg-gradient-to-r from-slate-900 to-blue-950 p-6 text-white flex items-center justify-between border-b border-white/10 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-200">
               <Camera className="w-5 h-5" />
@@ -123,20 +125,21 @@ export const ProfileSettingsModal: React.FC = () => {
 
         {/* Success Toast */}
         {successToast && (
-          <div className="mx-6 mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2 font-medium">
+          <div className="mx-6 mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2 font-medium shrink-0">
             <Check className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{successToast}</span>
           </div>
         )}
 
-        {/* Current Active User Profile Banner Card */}
-        <div className="p-6 pb-4">
+        {/* Modal Scrollable Body */}
+        <div className="p-6 pb-4 overflow-y-auto flex-1 space-y-4">
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center sm:items-start gap-4 card-3d">
             {/* Big Avatar with Edit Overlay */}
             <div className="relative group shrink-0">
               <div className="w-20 h-20 rounded-full ring-4 ring-white shadow-md overflow-hidden bg-slate-200 flex items-center justify-center border border-slate-300">
                 {currentUser?.avatarUrl ? (
                   <img
+                    key={currentUser.avatarUrl}
                     src={currentUser.avatarUrl}
                     alt={currentUser.name}
                     className="w-full h-full object-cover"
@@ -283,7 +286,15 @@ export const ProfileSettingsModal: React.FC = () => {
               <div className="space-y-2">
                 {rolesList.map((r) => {
                   const isCurrent = userRole === r.role;
-                  const defaultPic = ROLE_DEFAULT_AVATARS[r.role];
+                  const matchingUser = users.find((u) => u.role === r.role || u.email === r.email);
+                  const activeAvatar =
+                    (currentUser?.role === r.role && currentUser.avatarUrl) ||
+                    getCustomAvatar(r.role, r.email) ||
+                    matchingUser?.avatarUrl ||
+                    ROLE_DEFAULT_AVATARS[r.role];
+                  const displayName = (currentUser?.role === r.role && currentUser.name) || matchingUser?.name || r.name;
+                  const displayTitle = (currentUser?.role === r.role && currentUser.title) || matchingUser?.title || r.title;
+
                   return (
                     <button
                       key={r.role}
@@ -298,23 +309,27 @@ export const ProfileSettingsModal: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-300 shadow-2xs shrink-0">
+                        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-xs ring-1 ring-slate-200 shrink-0 bg-slate-100">
                           <img
-                            src={defaultPic}
-                            alt={r.name}
+                            key={activeAvatar}
+                            src={activeAvatar}
+                            alt={displayName}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = ROLE_DEFAULT_AVATARS[r.role] || '';
+                            }}
                           />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900">{r.name}</span>
+                            <span className="text-xs font-bold text-slate-900">{displayName}</span>
                             <span
                               className={`text-[9px] font-bold uppercase text-white px-1.5 py-0.2 rounded ${r.color}`}
                             >
                               {r.label}
                             </span>
                           </div>
-                          <span className="text-[11px] text-slate-500">{r.title}</span>
+                          <span className="text-[11px] text-slate-500">{displayTitle}</span>
                         </div>
                       </div>
 
