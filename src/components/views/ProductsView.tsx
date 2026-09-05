@@ -71,7 +71,7 @@ export const ProductsView: React.FC = () => {
         { id: `v-${Date.now()}-1`, attribute: 'Color', values: 'Blue, Black', extraPrice: '0' },
       ],
       pricelists: [
-        { id: `p-${Date.now()}-1`, tier: 'Bronze', currency: 'USD', priceRule: 'Price, no adjustment' },
+        { id: `p-${Date.now()}-1`, tier: 'Bronze', currency: 'INR', priceRule: 'Price, no adjustment' },
       ],
     });
   };
@@ -163,7 +163,7 @@ export const ProductsView: React.FC = () => {
       ...prev,
       pricelists: [
         ...(prev.pricelists || []),
-        { id: `p-${Date.now()}`, tier: 'Gold', currency: 'USD', priceRule: 'Price minus 10 percent base' },
+        { id: `p-${Date.now()}`, tier: 'Gold', currency: 'INR', priceRule: 'Price minus 10 percent base' },
       ],
     }));
   };
@@ -276,15 +276,18 @@ export const ProductsView: React.FC = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <label className="w-32 font-bold text-slate-700">Price ($ / ₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="1200"
-                  value={formData.listPrice || 0}
-                  onChange={(e) => setFormData({ ...formData, listPrice: parseFloat(e.target.value) || 0 })}
-                  className="flex-1 px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none font-bold text-slate-900"
-                />
+                <label className="w-32 font-bold text-slate-700">Price (₹)</label>
+                <div className="flex-1 relative flex items-center">
+                  <span className="absolute left-3 text-slate-500 font-bold text-xs">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="120000"
+                    value={formData.listPrice || 0}
+                    onChange={(e) => setFormData({ ...formData, listPrice: parseFloat(e.target.value) || 0 })}
+                    className="w-full pl-7 pr-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none font-bold text-slate-900"
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -421,7 +424,7 @@ export const ProductsView: React.FC = () => {
                 <tr>
                   <th className="py-3 px-4 w-1/4">Attribute</th>
                   <th className="py-3 px-4 w-1/2">Values</th>
-                  <th className="py-3 px-4 w-1/4">Extra price</th>
+                  <th className="py-3 px-4 w-1/4">Extra price (₹)</th>
                   <th className="py-3 px-4 w-12 text-center">Action</th>
                 </tr>
               </thead>
@@ -456,7 +459,7 @@ export const ProductsView: React.FC = () => {
                       <td className="py-2.5 px-4">
                         <input
                           type="text"
-                          placeholder="0 or +$30"
+                          placeholder="0 or +₹2,500"
                           value={v.extraPrice}
                           onChange={(e) => handleUpdateVariant(idx, 'extraPrice', e.target.value)}
                           className="w-full px-2.5 py-1.5 rounded border border-slate-300 focus:border-[#0176D3] outline-none font-bold text-slate-900"
@@ -529,7 +532,7 @@ export const ProductsView: React.FC = () => {
                       <td className="py-2.5 px-4">
                         <input
                           type="text"
-                          placeholder="USD / EUR / INR"
+                          placeholder="INR / USD / EUR"
                           value={p.currency}
                           onChange={(e) => handleUpdatePricelist(idx, 'currency', e.target.value)}
                           className="w-full px-2.5 py-1.5 rounded border border-slate-300 focus:border-[#0176D3] outline-none font-semibold text-slate-800 uppercase"
@@ -619,7 +622,7 @@ export const ProductsView: React.FC = () => {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-1">
           <span className="text-xs font-bold text-slate-600 block">Pricelists</span>
           <div className="text-2xl font-extrabold text-slate-900">3 Tiers</div>
-          <p className="text-xs text-slate-500">Bronze, Silver & Gold • USD & EUR base</p>
+          <p className="text-xs text-slate-500">Bronze, Silver & Gold • INR base</p>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-1">
@@ -662,7 +665,7 @@ export const ProductsView: React.FC = () => {
                 <th className="py-3.5 px-5">Product</th>
                 <th className="py-3.5 px-5">Category</th>
                 <th className="py-3.5 px-5">Variants</th>
-                <th className="py-3.5 px-5">Price</th>
+                <th className="py-3.5 px-5">Price (₹)</th>
                 <th className="py-3.5 px-5">Unit</th>
                 <th className="py-3.5 px-5">Tax</th>
                 <th className="py-3.5 px-5">Status</th>
@@ -676,8 +679,8 @@ export const ProductsView: React.FC = () => {
                     : '-';
 
                 const formattedPrice = prod.isRecurring
-                  ? `$${prod.listPrice}/month`
-                  : `$${prod.listPrice.toLocaleString('en-US')}`;
+                  ? `₹${prod.listPrice.toLocaleString('en-IN')}/month`
+                  : `₹${prod.listPrice.toLocaleString('en-IN')}`;
 
                 return (
                   <tr

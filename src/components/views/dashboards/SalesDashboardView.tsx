@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, ShieldCheck, FileText, PlusCircle, ArrowRight, Clock, ShieldAlert, Activity } from 'lucide-react';
+import { ShieldCheck, FileText, PlusCircle, ArrowRight, Clock, ShieldAlert, Activity } from 'lucide-react';
 import { useAppStore } from '../../../store/useAppStore';
 import { MetricCard } from '../../design-system/MetricCard';
 import { StatusBadge } from '../../design-system/StatusBadge';

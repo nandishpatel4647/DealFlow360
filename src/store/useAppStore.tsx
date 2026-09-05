@@ -257,7 +257,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [users, setUsers] = useState<DemoUser[]>(initialSaved?.users || DEMO_USERS);
   const [companies, setCompanies] = useState<Company[]>(initialSaved?.companies || SEED_COMPANIES);
-  const [products, setProducts] = useState<Product[]>(initialSaved?.products || SEED_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    if (!initialSaved?.products) return SEED_PRODUCTS;
+    return initialSaved.products.map((p: Product) => {
+      const seed = SEED_PRODUCTS.find((sp) => sp.id === p.id);
+      if (seed && p.listPrice <= 1500 && seed.listPrice >= 10000) {
+        return {
+          ...p,
+          listPrice: seed.listPrice,
+          costPrice: seed.costPrice,
+          variants: p.variants?.map((v) => ({
+            ...v,
+            extraPrice: v.extraPrice ? v.extraPrice.replace('$', '₹') : v.extraPrice,
+          })),
+          pricelists: p.pricelists?.map((pl) => ({
+            ...pl,
+            currency: pl.currency === 'USD' ? 'INR' : pl.currency.replace('USD', 'INR'),
+          })),
+        };
+      }
+      return p;
+    });
+  });
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialSaved?.warehouses || SEED_WAREHOUSES);
   const [inventory, setInventory] = useState<WarehouseInventory[]>(initialSaved?.inventory || SEED_INVENTORY);
   const [quotes, setQuotes] = useState<Quote[]>(() => {
