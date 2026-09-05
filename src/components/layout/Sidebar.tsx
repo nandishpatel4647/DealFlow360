@@ -29,7 +29,7 @@ import { BrandLogo } from '../common/BrandLogo';
 interface SidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
-  onOpenAskDealFlow: () => void;
+  onOpenAskDealFlow?: () => void;
 }
 
 interface NavItem {
@@ -44,7 +44,6 @@ interface NavItem {
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
-  onOpenAskDealFlow,
 }) => {
   const { userRole, activeView, setActiveView, setSelectedQuoteId, quotes, anomalies, logout, currentUser, setIsProfileModalOpen } =
     useAppStore();
@@ -203,20 +202,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Bottom Actions & User Profile */}
         <div className="p-3 border-t border-slate-200 space-y-3 bg-white">
-          {/* Ask DealFlow AI Button */}
-          {!isCustomer && (
-            <button
-              onClick={() => {
-                onOpenAskDealFlow();
-                onCloseMobile();
-              }}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-blue-50 text-[#0176D3] border border-blue-200 hover:bg-blue-100 transition cursor-pointer shadow-2xs"
-            >
-              <Sparkles className="w-4 h-4 text-[#0176D3]" />
-              <span>Ask DealFlow AI</span>
-            </button>
-          )}
-
           {/* User Profile Card with 3D Embossed Depth & Avatar Settings */}
           <div className="p-2 rounded-xl bg-white border border-slate-200 card-3d flex items-center justify-between shadow-xs">
             <button

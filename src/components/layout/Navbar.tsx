@@ -117,17 +117,6 @@ export const Navbar: React.FC<{ onOpenAskDealFlow?: () => void }> = ({ onOpenAsk
 
         {/* Right Action Tools: Role Switcher & Reset */}
         <div className="flex items-center gap-2">
-          {/* Ask DealFlow AI Button */}
-          {onOpenAskDealFlow && (
-            <button
-              onClick={onOpenAskDealFlow}
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-cyan-950/40 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-900/50 transition cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Ask DealFlow</span>
-            </button>
-          )}
-
           {/* Role Switcher */}
           <div className="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-md border border-slate-800">
             <span className="text-[11px] text-slate-500 font-medium">Role:</span>

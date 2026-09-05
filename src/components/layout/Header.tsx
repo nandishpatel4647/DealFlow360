@@ -60,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
   const currentViewInfo = viewTitles[activeView] || { title: activeView.replace('_', ' ').toUpperCase(), category: 'Portal' };
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-2xs px-4 sm:px-6 py-3 flex items-center justify-between">
+    <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-2xs px-4 sm:px-6 h-16 flex items-center justify-between shrink-0">
       {/* Left: Mobile Toggle & Breadcrumb */}
       <div className="flex items-center gap-3">
         <button
@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
       </div>
 
       {/* Right: Quick Search, Role Switcher, Notifications, Reset */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         {/* Global Search */}
         <div className="relative hidden lg:block">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -119,7 +119,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
         </button>
 
         {/* Notifications Bell */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer relative border border-slate-200 bg-white shadow-2xs btn-3d"
@@ -134,40 +134,48 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
 
           {/* Notifications Dropdown Popup */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl border border-slate-200 shadow-2xl z-50 p-3 space-y-2 card-3d">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <span className="text-xs font-bold text-slate-900">Governance Alerts</span>
-                <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full badge-3d">
-                  {activeAnomalies.length} Active
-                </span>
-              </div>
+            <>
+              {/* Click-away backdrop overlay */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowNotifications(false)}
+              />
 
-              {activeAnomalies.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-3">No active anomalies.</p>
-              ) : (
-                <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                  {activeAnomalies.map((a) => (
-                    <div
-                      key={a.id}
-                      onClick={() => {
-                        setSelectedQuoteId(a.quoteId);
-                        setActiveView('deal_health');
-                        setShowNotifications(false);
-                      }}
-                      className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 cursor-pointer text-xs transition"
-                    >
-                      <div className="flex items-center justify-between font-bold text-slate-900">
-                        <span>{a.companyName}</span>
-                        <span className="text-[10px] text-rose-700 uppercase font-mono">
-                          {a.anomalyType}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 truncate mt-0.5">{a.description}</p>
-                    </div>
-                  ))}
+              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl border border-slate-200 shadow-2xl z-50 p-3 space-y-2 card-3d">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <span className="text-xs font-bold text-slate-900">Governance Alerts</span>
+                  <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full badge-3d">
+                    {activeAnomalies.length} Active
+                  </span>
                 </div>
-              )}
-            </div>
+
+                {activeAnomalies.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-3">No active anomalies.</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                    {activeAnomalies.map((a) => (
+                      <div
+                        key={a.id}
+                        onClick={() => {
+                          setSelectedQuoteId(a.quoteId);
+                          setActiveView('deal_health');
+                          setShowNotifications(false);
+                        }}
+                        className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 cursor-pointer text-xs transition"
+                      >
+                        <div className="flex items-center justify-between font-bold text-slate-900">
+                          <span>{a.companyName}</span>
+                          <span className="text-[10px] text-rose-700 uppercase font-mono">
+                            {a.anomalyType}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 truncate mt-0.5">{a.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
 

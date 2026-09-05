@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   FileText,
@@ -51,8 +51,47 @@ export const CustomerPortalView: React.FC = () => {
     setIsProfileModalOpen,
   } = useAppStore();
 
-  // Top Navbar Tab State: My Quotation | Messages | Invoices | Profile
-  const [activeTab, setActiveTab] = useState<'quotation' | 'messages' | 'invoices' | 'profile'>('quotation');
+  const getTabFromHash = (): 'quotation' | 'messages' | 'invoices' | 'profile' => {
+    if (typeof window === 'undefined') return 'quotation';
+    const clean = window.location.hash.replace(/^#\/?/, '').split('?')[0];
+    if (clean === 'portal/messages' || clean === 'messages') return 'messages';
+    if (clean === 'portal/invoices' || clean === 'invoices') return 'invoices';
+    if (clean === 'portal/profile' || clean === 'profile') return 'profile';
+    return 'quotation';
+  };
+
+  // Top Navbar Tab State: My Quotation | Messages | Invoices | Profile with URL Hash Sync
+  const [activeTab, setActiveTabState] = useState<'quotation' | 'messages' | 'invoices' | 'profile'>(getTabFromHash);
+
+  const setActiveTab = (tab: 'quotation' | 'messages' | 'invoices' | 'profile') => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', `#/portal/${tab}`);
+    }
+  };
+
+  useEffect(() => {
+    const handleHashSync = () => {
+      const tab = getTabFromHash();
+      setActiveTabState(tab);
+    };
+
+    window.addEventListener('hashchange', handleHashSync);
+    window.addEventListener('popstate', handleHashSync);
+
+    // Synchronize initial subpage hash on mount
+    if (typeof window !== 'undefined') {
+      const current = getTabFromHash();
+      if (!window.location.hash.startsWith('#/portal/')) {
+        window.history.replaceState(null, '', `#/portal/${current}`);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashSync);
+      window.removeEventListener('popstate', handleHashSync);
+    };
+  }, []);
 
   // Counter Offer Form State
   const [counterDiscounts, setCounterDiscounts] = useState<Record<string, number>>({});

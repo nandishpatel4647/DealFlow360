@@ -365,6 +365,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return { view: 'builder', quoteId: path.replace('quotes/', '') };
     }
 
+    if (path === 'portal' || path.startsWith('portal/')) {
+      return { view: 'portal', quoteId };
+    }
+
     return { view: path, quoteId };
   };
 
@@ -473,7 +477,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Synchronize initial URL hash on mount
     if (typeof window !== 'undefined') {
       const currentInitial = getInitialView();
-      if (!window.location.hash || (!isAuthenticated && (window.location.hash === '#/portal' || window.location.hash === '#/dashboard'))) {
+      if (!window.location.hash || (!isAuthenticated && (window.location.hash.startsWith('#/portal') || window.location.hash === '#/dashboard'))) {
         window.history.replaceState(null, '', `#/${currentInitial}`);
       }
     }

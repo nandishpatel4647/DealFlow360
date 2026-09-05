@@ -84,6 +84,15 @@ interface LandingPageViewProps {
 
 // ---------- Top Nav ----------
 const DFNav: React.FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const yOffset = -90;
+      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div
       className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-32px)] max-w-6xl"
@@ -101,46 +110,52 @@ const DFNav: React.FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
 
         {/* Navigation Links */}
         <div className="hidden lg:flex items-center gap-1 mx-auto text-[13px] font-medium text-slate-300">
-          <a
-            href="#simulator"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
+          <button
+            type="button"
+            onClick={() => scrollToSection('simulator')}
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300 cursor-pointer"
             data-testid="nav-simulator"
           >
             Live Simulator
-          </a>
-          <a
-            href="#personas"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('personas')}
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300 cursor-pointer"
             data-testid="nav-personas"
           >
             Stakeholders
-          </a>
-          <a
-            href="#roi"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('roi')}
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300 cursor-pointer"
             data-testid="nav-roi"
           >
             ROI Calculator
-          </a>
-          <a
-            href="#lifecycle"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('lifecycle')}
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300 cursor-pointer"
             data-testid="nav-lifecycle"
           >
             How it works
-          </a>
-          <a
-            href="#trust"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('trust')}
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300 cursor-pointer"
             data-testid="nav-trust"
           >
             Enterprise Trust
-          </a>
+          </button>
         </div>
 
         {/* Right Actions */}
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={onOpenAuth}
             className="bg-[#0176D3] hover:bg-blue-600 text-white font-bold text-[13px] px-5 py-2.5 rounded-full shadow-md hover:shadow-lg transition flex items-center gap-1.5 cursor-pointer"
             data-testid="launch-cockpit-button"

@@ -577,14 +577,17 @@ export const QuoteBuilderView: React.FC = () => {
                             min="1"
                             max="999"
                             value={line.quantity}
-                            onChange={(e) =>
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/^0+/, '');
+                              const qty = parseInt(raw, 10) || 1;
                               updateQuoteLine(
                                 activeQuote.id,
                                 line.id,
-                                parseInt(e.target.value) || 1,
+                                Math.max(1, qty),
                                 line.discountPercent
-                              )
-                            }
+                              );
+                            }}
                             className="w-12 text-center py-1 rounded bg-slate-50 border border-slate-300 text-slate-900 font-mono text-xs font-bold outline-none focus:border-[#0176D3] focus:bg-white"
                           />
                         ) : (
@@ -606,15 +609,19 @@ export const QuoteBuilderView: React.FC = () => {
                               type="number"
                               min="0"
                               max="100"
-                              value={line.discountPercent}
-                              onChange={(e) =>
-                                updateQuoteLine(
-                                  activeQuote.id,
-                                  line.id,
-                                  line.quantity,
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
+                              placeholder="0"
+                              value={line.discountPercent === 0 ? '' : line.discountPercent}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === '') {
+                                  updateQuoteLine(activeQuote.id, line.id, line.quantity, 0);
+                                } else {
+                                  const cleaned = raw.replace(/^0+(?=\d)/, '');
+                                  const num = Math.min(100, Math.max(0, parseFloat(cleaned) || 0));
+                                  updateQuoteLine(activeQuote.id, line.id, line.quantity, num);
+                                }
+                              }}
                               className={`w-14 px-2 py-1 rounded font-mono text-xs font-bold outline-none transition ${
                                 line.isOverLimit
                                   ? 'bg-rose-50 border border-rose-400 text-rose-800 font-extrabold'

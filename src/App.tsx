@@ -17,7 +17,6 @@ import { DealHealthView } from './components/views/DealHealthView';
 import { ReportsView } from './components/views/ReportsView';
 import { AdminConfigView } from './components/views/AdminConfigView';
 import { ProductsView } from './components/views/ProductsView';
-import { AskDealFlowModal } from './components/modals/AskDealFlowModal';
 import { ProfileSettingsModal } from './components/modals/ProfileSettingsModal';
 
 import { ProtectedRoute } from './auth/ProtectedRoute';
@@ -25,7 +24,6 @@ import { ProtectedRoute } from './auth/ProtectedRoute';
 const AppContent: React.FC = () => {
   const { isAuthenticated, userRole, activeView, setActiveView, selectedQuoteId } = useAppStore();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isAskModalOpen, setIsAskModalOpen] = useState(false);
 
   // Every page and portal starts from top in entire website
   useEffect(() => {
@@ -162,7 +160,6 @@ const AppContent: React.FC = () => {
       <Sidebar
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
-        onOpenAskDealFlow={() => setIsAskModalOpen(true)}
       />
 
       {/* Main Right Content Area */}
@@ -180,12 +177,6 @@ const AppContent: React.FC = () => {
           DealFlow360 Enterprise • Self-Governing B2B CPQ Platform
         </footer>
       </div>
-
-      {/* Ask DealFlow AI Modal */}
-      <AskDealFlowModal
-        isOpen={isAskModalOpen}
-        onClose={() => setIsAskModalOpen(false)}
-      />
 
       {/* Profile & Avatar Settings Modal */}
       <ProfileSettingsModal />
