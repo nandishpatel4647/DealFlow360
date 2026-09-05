@@ -15,17 +15,31 @@ import { LandingPageView } from './components/views/LandingPageView';
 import { AskDealFlowModal } from './components/modals/AskDealFlowModal';
 import { GlobalSearchModal } from './components/modals/GlobalSearchModal';
 import { AuthModal } from './components/modals/AuthModal';
+import { isViewAllowedForRole } from './logic/permissions';
+import { ShieldAlert } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const {
     currentRoute,
     activeView,
+    setActiveView,
+    userRole,
+    isCustomerPortalPreview,
     isGlobalSearchOpen,
     setIsGlobalSearchOpen,
   } = useAppStore();
 
   const [isAskModalOpen, setIsAskModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Global Scroll Reset on View or Route Change
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const scrollContainer = document.getElementById('main-content-scroll');
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
+  }, [activeView, currentRoute]);
 
   // Global Ctrl+K / Cmd+K listener
   useEffect(() => {
@@ -52,7 +66,56 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // Dedicated Standalone Customer Workspace (No internal enterprise sidebar or header)
+  if (userRole === 'customer') {
+    return (
+      <div
+        className="min-h-screen h-screen overflow-y-auto font-sans"
+        id="main-content-scroll"
+        style={{
+          backgroundColor: 'var(--bg-base)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <CustomerPortalView />
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  // Protected View Rendering with Route Guards
   const renderCurrentView = () => {
+    // Admin previewing customer portal check
+    if (activeView === 'portal' && userRole === 'admin' && isCustomerPortalPreview) {
+      return <CustomerPortalView />;
+    }
+
+    // Role-based permission guard
+    if (!isViewAllowedForRole(activeView, userRole)) {
+      return (
+        <div className="py-20 text-center max-w-md mx-auto space-y-4 animate-scale-in">
+          <div className="w-14 h-14 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto shadow-sm">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-[var(--text-primary)]">Access Restricted</h2>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              Your role (<strong>{userRole.replace('_', ' ')}</strong>) does not have authorization to access the <strong>{activeView.replace('_', ' ')}</strong> workspace.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveView('dashboard')}
+            className="btn-primary !px-4 !py-2 !text-xs cursor-pointer"
+          >
+            Return to My Workspace
+          </button>
+        </div>
+      );
+    }
+
     switch (activeView) {
       case 'dashboard':
         return <DashboardView />;
@@ -89,13 +152,16 @@ const AppContent: React.FC = () => {
       <Sidebar onOpenAuth={() => setIsAuthModalOpen(true)} />
 
       {/* Main Content Area with Header */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+      <div
+        className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto"
+        id="main-content-scroll"
+      >
         <Header
           onOpenAskDealFlow={() => setIsAskModalOpen(true)}
           onOpenGlobalSearch={() => setIsGlobalSearchOpen(true)}
         />
 
-        <main className="flex-1 p-6 max-w-[1600px] w-full mx-auto">
+        <main className="flex-1 p-6 max-w-[1600px] w-full mx-auto page-enter-transition">
           {renderCurrentView()}
         </main>
 

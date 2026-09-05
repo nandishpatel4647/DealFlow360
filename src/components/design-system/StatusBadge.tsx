@@ -48,6 +48,26 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
       text: 'text-emerald-700 dark:text-emerald-400',
       dot: 'bg-emerald-500',
     },
+    'Customer Accepted': {
+      bg: 'bg-emerald-50 dark:bg-emerald-500/12',
+      text: 'text-emerald-700 dark:text-emerald-400',
+      dot: 'bg-emerald-500',
+    },
+    Allocated: {
+      bg: 'bg-blue-50 dark:bg-blue-500/12',
+      text: 'text-blue-600 dark:text-blue-400',
+      dot: 'bg-blue-500',
+    },
+    Submitted: {
+      bg: 'bg-[var(--warning-soft)]',
+      text: 'text-[var(--warning)]',
+      dot: 'bg-[var(--warning)]',
+    },
+    Superseded: {
+      bg: 'bg-[var(--surface-sunken)]',
+      text: 'text-[var(--text-tertiary)]',
+      dot: 'bg-[var(--text-muted)]',
+    },
     Rejected: {
       bg: 'bg-[var(--danger-soft)]',
       text: 'text-[var(--danger)]',

@@ -1,26 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  ShieldCheck,
   LayoutDashboard,
-  Kanban,
   FilePlus2,
+  Kanban,
   CheckSquare,
   Truck,
-  ExternalLink,
   CreditCard,
   HeartPulse,
   Settings,
-  RotateCcw,
-  LogOut,
+  ShieldCheck,
   ChevronDown,
-  UserCheck,
-  Building2,
+  RotateCcw,
   Sparkles,
+  LogOut,
+  UserCheck,
+  Users,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 interface SidebarProps {
-  onOpenAuth?: () => void;
+  onOpenAuth: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
@@ -32,10 +31,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
     users,
     loginAsRole,
     logout,
+    setCurrentRoute,
     quotes,
     anomalies,
     resetToSeedData,
-    setCurrentRoute,
   } = useAppStore();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -56,132 +55,101 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
     (q) => q.status === 'Pending Manager' || q.status === 'Pending Finance'
   ).length;
   const activeAnomaliesCount = anomalies.filter((a) => !a.isResolved).length;
+  const pendingUsersCount = users.filter((u) => u.status === 'pending').length;
 
-  const workspaceNavItems = [
-    {
-      id: 'dashboard',
-      label: 'Command Center',
-      icon: LayoutDashboard,
-      roles: ['sales_rep', 'sales_manager', 'finance', 'admin'],
-    },
-    {
-      id: 'pipeline',
-      label: 'Pipeline',
-      icon: Kanban,
-      roles: ['sales_rep', 'sales_manager', 'finance', 'admin'],
-    },
-    {
-      id: 'builder',
-      label: 'Quote Builder',
-      icon: FilePlus2,
-      roles: ['sales_rep', 'sales_manager', 'admin'],
-    },
-    {
-      id: 'approvals',
-      label: 'Approvals & Risk',
-      icon: CheckSquare,
-      badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
-      badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
-      roles: ['sales_rep', 'sales_manager', 'finance', 'admin'],
-    },
-    {
-      id: 'fulfillment',
-      label: 'Fulfillment',
-      icon: Truck,
-      roles: ['sales_rep', 'sales_manager', 'finance', 'admin'],
-    },
-    {
-      id: 'portal',
-      label: 'Customer Portal',
-      icon: ExternalLink,
-      badge: 'Client',
-      badgeColor: 'bg-blue-100 text-blue-800 border-blue-200',
-      roles: ['sales_rep', 'sales_manager', 'finance', 'customer', 'admin'],
-    },
-    {
-      id: 'billing',
-      label: 'Billing & Subs',
-      icon: CreditCard,
-      roles: ['sales_rep', 'sales_manager', 'finance', 'admin'],
-    },
-    {
-      id: 'deal_health',
-      label: 'Deal Health',
-      icon: HeartPulse,
-      badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined,
-      badgeColor: 'bg-rose-100 text-rose-800 border-rose-200',
-      roles: ['sales_rep', 'sales_manager', 'admin'],
-    },
-  ];
+  // Strict Role-Specific Navigation Definitions
+  const getNavItemsForRole = () => {
+    switch (userRole) {
+      case 'sales_rep':
+        return [
+          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+          { id: 'pipeline', label: 'Pipeline', icon: Kanban },
+          { id: 'builder', label: 'Quote Builder', icon: FilePlus2 },
+          { id: 'deal_health', label: 'Deal Intelligence', icon: HeartPulse, badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined, badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
+        ];
+      case 'sales_manager':
+        return [
+          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+          { id: 'pipeline', label: 'Pipeline', icon: Kanban },
+          { id: 'approvals', label: 'Approvals & Risk', icon: CheckSquare, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined, badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' },
+          { id: 'deal_health', label: 'Deal Health', icon: HeartPulse, badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined, badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
+        ];
+      case 'finance':
+        return [
+          { id: 'dashboard', label: 'Financial Overview', icon: LayoutDashboard },
+          { id: 'approvals', label: 'Approvals & Margin', icon: CheckSquare, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined, badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' },
+          { id: 'billing', label: 'Billing & Subs', icon: CreditCard },
+          { id: 'deal_health', label: 'Deal Health', icon: HeartPulse, badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined, badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
+        ];
+      case 'admin':
+        return [
+          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+          { id: 'admin_config', label: 'Admin Control Center', icon: Settings, badge: pendingUsersCount > 0 ? `${pendingUsersCount} New` : undefined, badgeColor: 'bg-blue-100 text-blue-800 border-blue-200' },
+          { id: 'pipeline', label: 'Pipeline Review', icon: Kanban },
+          { id: 'fulfillment', label: 'Warehouse Hubs', icon: Truck },
+          { id: 'deal_health', label: 'Deal Health', icon: HeartPulse },
+        ];
+      default:
+        return [
+          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
+        ];
+    }
+  };
 
-  const managementNavItems = [
-    {
-      id: 'admin_config',
-      label: 'Admin Config',
-      icon: Settings,
-      roles: ['admin'],
-    },
-  ];
-
-  const filteredWorkspace = workspaceNavItems.filter((item) =>
-    item.roles.includes(userRole)
-  );
-  const filteredManagement = managementNavItems.filter((item) =>
-    item.roles.includes(userRole)
-  );
+  const navItems = getNavItemsForRole();
 
   return (
     <aside
-      className="w-60 shrink-0 h-screen sticky top-0 flex flex-col z-30 transition-all select-none"
+      className="w-60 shrink-0 h-screen sticky top-0 flex flex-col z-30 transition-all select-none border-r"
       style={{
         backgroundColor: 'var(--bg-surface)',
-        borderRight: '1px solid var(--border-default)',
+        borderColor: 'var(--border-default)',
       }}
     >
-      {/* Brand Header */}
+      {/* Brand Header — Clean institutional logo (No v2.0 badge) */}
       <div
         className="h-16 px-4 flex items-center justify-between cursor-pointer border-b"
         style={{ borderColor: 'var(--border-default)' }}
         onClick={() => setCurrentRoute('landing')}
-        title="View Landing Page"
+        title="View Product Landing Page"
       >
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center shadow-xs text-white">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-bold tracking-tight text-[var(--text-primary)]">
-                DealFlow<span className="text-[var(--accent-primary)] font-mono">360</span>
-              </span>
-            </div>
+            <span className="text-sm font-bold tracking-tight text-[var(--text-primary)]">
+              DealFlow<span className="text-[var(--accent-primary)] font-mono">360</span>
+            </span>
             <p className="text-[10px] text-[var(--text-tertiary)] font-medium tracking-tight">
               Govern. Grow. Close.
             </p>
           </div>
         </div>
-
-        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-          v2.0
-        </span>
       </div>
 
-      {/* Navigation Sections */}
+      {/* Role-Specific Navigation */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        {/* Workspace Group */}
         <div>
           <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
-            Workspace
+            {userRole === 'finance'
+              ? 'Finance Workspace'
+              : userRole === 'admin'
+              ? 'Operations & Control'
+              : userRole === 'sales_manager'
+              ? 'Sales Leadership'
+              : 'Commercial Sales'}
           </span>
-          <div className="mt-1.5 space-y-0.5">
-            {filteredWorkspace.map((item) => {
+
+          <div className="mt-2 space-y-1">
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeView === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveView(item.id)}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors cursor-pointer text-left ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all cursor-pointer text-left ${
                     isActive
                       ? 'bg-[var(--accent-primary)] text-white shadow-xs font-semibold'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]'
@@ -198,10 +166,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
 
                   {item.badge !== undefined && (
                     <span
-                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border ${
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
                         isActive
-                          ? 'bg-white/20 text-white border-white/30'
-                          : item.badgeColor
+                          ? 'bg-white text-[var(--accent-primary)] border-white'
+                          : item.badgeColor || 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                       }`}
                     >
                       {item.badge}
@@ -212,68 +180,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
             })}
           </div>
         </div>
-
-        {/* Management Group (if allowed for role) */}
-        {filteredManagement.length > 0 && (
-          <div>
-            <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
-              Management
-            </span>
-            <div className="mt-1.5 space-y-0.5">
-              {filteredManagement.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeView === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveView(item.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors cursor-pointer text-left ${
-                      isActive
-                        ? 'bg-[var(--accent-primary)] text-white shadow-xs font-semibold'
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon
-                        className={`w-4 h-4 shrink-0 ${
-                          isActive ? 'text-white' : 'text-[var(--text-tertiary)]'
-                        }`}
-                      />
-                      <span className="truncate">{item.label}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Customer Portal Restricted Session Notice */}
-        {userRole === 'customer' && (
-          <div className="p-3 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 space-y-1">
-            <div className="font-semibold flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-blue-600" />
-              Secure Buyer Session
-            </div>
-            <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
-              Logged in as Acme Industries. Internal margins and risk scores are protected and hidden.
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* Footer Profile & Demo Environment */}
+      {/* Footer Profile & Demo Switcher */}
       <div
         className="p-3 border-t relative"
         style={{ borderColor: 'var(--border-default)' }}
         ref={popoverRef}
       >
-        {/* Subtle Demo Environment Indicator */}
-        <div className="flex items-center justify-between mb-2 px-1 text-[11px]">
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Demo Environment
-          </span>
+        <div className="flex items-center justify-between px-2 pb-2">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
+              {userRole.replace('_', ' ')}
+            </span>
+          </div>
+
           <button
             onClick={() => {
               resetToSeedData();
@@ -314,7 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
           />
         </button>
 
-        {/* Role Switcher & Profile Popover */}
+        {/* Role Switcher Popover */}
         {isProfileOpen && (
           <div
             className="absolute bottom-full left-3 right-3 mb-2 p-2 rounded-xl shadow-lg border animate-slide-up z-50 text-xs"
@@ -339,34 +261,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
               <p className="px-2 text-[10px] font-semibold text-[var(--text-muted)]">
                 Switch Demo Persona:
               </p>
-              {users.map((u) => {
-                const isCurrent = u.role === userRole;
-                return (
-                  <button
-                    key={u.id}
-                    onClick={() => {
-                      loginAsRole(u.role);
-                      setIsProfileOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors cursor-pointer ${
-                      isCurrent
-                        ? 'bg-[var(--accent-primary-soft)] text-[var(--accent-primary)] font-semibold'
-                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    <img
-                      src={u.avatar}
-                      alt={u.name}
-                      className="w-5 h-5 rounded-full object-cover shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs truncate">{u.name}</p>
-                      <p className="text-[10px] opacity-75 capitalize truncate">{u.role.replace('_', ' ')}</p>
-                    </div>
-                    {isCurrent && <UserCheck className="w-3.5 h-3.5 text-[var(--accent-primary)] shrink-0" />}
-                  </button>
-                );
-              })}
+              {users
+                .filter((u) => u.status === 'active')
+                .map((u) => {
+                  const isCurrent = u.role === userRole;
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => {
+                        loginAsRole(u.role);
+                        setIsProfileOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[var(--accent-primary-soft)] text-[var(--accent-primary)] font-semibold'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <img
+                        src={u.avatar}
+                        alt={u.name}
+                        className="w-5 h-5 rounded-full object-cover shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs truncate">{u.name}</p>
+                        <p className="text-[10px] opacity-75 capitalize truncate">{u.role.replace('_', ' ')}</p>
+                      </div>
+                      {isCurrent && <UserCheck className="w-3.5 h-3.5 text-[var(--accent-primary)] shrink-0" />}
+                    </button>
+                  );
+                })}
             </div>
 
             <div className="mt-2 pt-2 border-t space-y-1" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -379,6 +303,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
               >
                 <Sparkles className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
                 <span>Visit Landing Page</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onOpenAuth();
+                  setIsProfileOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+              >
+                <Users className="w-3.5 h-3.5 text-blue-600" />
+                <span>Sign In / Sign Up</span>
               </button>
 
               <button

@@ -19,7 +19,11 @@ export const FulfillmentView: React.FC = () => {
     setSelectedQuoteId,
     acceptFulfillment,
     setActiveView,
+    userRole,
   } = useAppStore();
+
+  const [isAccepting, setIsAccepting] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const activeQuote = quotes.find((q) => q.id === selectedQuoteId) || quotes[0];
   const fulfillmentPlan = generateOptimalFulfillment(
@@ -28,6 +32,25 @@ export const FulfillmentView: React.FC = () => {
     warehouses,
     inventory
   );
+
+  const isAllocated =
+    activeQuote?.status === 'Allocated' ||
+    activeQuote?.status === 'Invoiced' ||
+    activeQuote?.status === 'Paid';
+
+  const handleAcceptAllocation = () => {
+    if (!activeQuote) return;
+    setIsAccepting(true);
+    setTimeout(() => {
+      const res = acceptFulfillment(activeQuote.id);
+      setIsAccepting(false);
+      if (res.success) {
+        setActionFeedback(res.message || 'Allocation split confirmed and invoice generated.');
+      } else {
+        alert(res.message || 'Failed to accept allocation.');
+      }
+    }, 400);
+  };
 
   return (
     <div className="space-y-6">
@@ -218,7 +241,7 @@ export const FulfillmentView: React.FC = () => {
 
             {/* Actions */}
             <div
-              className="px-5 py-4 flex items-center justify-between"
+              className="px-5 py-4 flex flex-col sm:flex-row items-center justify-between gap-3"
               style={{ borderTop: '1px solid var(--border-default)' }}
             >
               <div className="text-xs text-[var(--text-tertiary)]">
@@ -226,19 +249,43 @@ export const FulfillmentView: React.FC = () => {
                 <span className="font-mono font-bold text-[var(--text-primary)]">
                   ₹{fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}
                 </span>
+                {actionFeedback && (
+                  <span className="ml-3 text-[var(--success)] font-medium">
+                    ✓ {actionFeedback}
+                  </span>
+                )}
               </div>
-              <button
-                onClick={() => {
-                  if (activeQuote) {
-                    acceptFulfillment(activeQuote.id);
-                    alert('Optimal split accepted! Invoice generated.');
-                  }
-                }}
-                className="btn-primary"
-                style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
-              >
-                <CheckCircle2 className="w-4 h-4" /> Accept Allocation
-              </button>
+
+              <div>
+                {isAllocated ? (
+                  <div className="flex items-center gap-3">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-[var(--success-soft)] border border-[var(--success-border)] text-[var(--success)] font-semibold text-xs">
+                      <CheckCircle2 className="w-4 h-4 text-[var(--success)]" />
+                      <span>✓ Allocation Confirmed & Locked</span>
+                    </div>
+                    <button
+                      onClick={() => setActiveView('billing')}
+                      className="btn-secondary text-xs py-1.5"
+                    >
+                      View Invoice →
+                    </button>
+                  </div>
+                ) : userRole !== 'admin' ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--surface-sunken)] border border-[var(--border-default)] text-xs text-[var(--text-tertiary)]">
+                    <span>View Only — Dispatch Reserved for Platform Admin</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleAcceptAllocation}
+                    disabled={isAccepting}
+                    className="btn-primary flex items-center gap-2 text-xs py-2 px-4 shadow-sm"
+                    style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)', color: '#ffffff' }}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{isAccepting ? 'Confirming Split...' : 'Accept Allocation'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

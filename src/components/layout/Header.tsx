@@ -11,6 +11,7 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
@@ -28,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
     setActiveView,
     selectedQuoteId,
     activeUser,
+    users,
     userRole,
     createNewQuote,
     companies,
@@ -211,15 +213,41 @@ export const Header: React.FC<HeaderProps> = ({
           {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        {/* Primary Action Button */}
-        {userRole !== 'customer' && (
+        {/* Admin Pending Access Requests Badge */}
+        {userRole === 'admin' && users.filter((u) => u.status === 'pending').length > 0 && (
+          <button
+            onClick={() => setActiveView('admin_config')}
+            className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 flex items-center gap-1.5 cursor-pointer animate-pulse"
+            title="Review pending user registrations"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-600" />
+            <span>{users.filter((u) => u.status === 'pending').length} Access Requests</span>
+          </button>
+        )}
+
+        {/* Finance Contextual Action */}
+        {userRole === 'finance' && (
+          <button
+            onClick={() => setActiveView('approvals')}
+            className="btn-secondary !py-1.5 !px-3 !text-xs !gap-1.5"
+            title="Review deals requiring Finance commercial approval"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden sm:inline">Pending Approvals</span>
+          </button>
+        )}
+
+        {/* Primary Action Button — Strictly restricted to Sales Representative & Sales Manager */}
+        {(userRole === 'sales_rep' || userRole === 'sales_manager') && (
           <button
             onClick={() => {
               const newId = createNewQuote(companies[0].id);
-              setSelectedQuoteId(newId);
-              setActiveView('builder');
+              if (newId) {
+                setSelectedQuoteId(newId);
+                setActiveView('builder');
+              }
             }}
-            className="btn-primary !py-1.5 !px-3 !text-xs !gap-1.5"
+            className="btn-primary !py-1.5 !px-3 !text-xs !gap-1.5 cursor-pointer"
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">New Quotation</span>

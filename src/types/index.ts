@@ -64,16 +64,36 @@ export interface WarehouseInventory {
   quantityReserved: number;
 }
 
-export type QuoteStatus =
+export type UserAccountStatus = 'pending' | 'active' | 'rejected' | 'suspended';
+
+export type RevisionLifecycleStatus =
   | 'Draft'
+  | 'Under Negotiation'
+  | 'Active'
+  | 'Superseded';
+
+export type GovernanceApprovalStatus =
+  | 'Pending Manager'
+  | 'Pending Finance'
+  | 'Fully Approved'
+  | 'Rejected';
+
+export type DealWorkflowStatus =
+  | 'Draft'
+  | 'Submitted'
   | 'Pending Manager'
   | 'Pending Finance'
   | 'Fully Approved'
   | 'Under Negotiation'
+  | 'Customer Accepted'
   | 'Fulfillment'
+  | 'Allocated'
   | 'Invoiced'
   | 'Paid'
-  | 'Rejected';
+  | 'Rejected'
+  | 'Superseded';
+
+export type QuoteStatus = DealWorkflowStatus;
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -106,6 +126,24 @@ export interface RiskBreakdown {
   reasons: string[];
 }
 
+export interface QuoteRevision {
+  revisionNumber: number;
+  createdAt: string;
+  createdBy: string;
+  totalListAmount: number;
+  totalDiscountAmount: number;
+  totalNetAmount: number;
+  marginPercent: number;
+  riskScore: number;
+  riskLevel: RiskLevel;
+  lineDiscounts: Record<string, number>;
+  revisionStatus: RevisionLifecycleStatus;
+  approvalStatus: GovernanceApprovalStatus;
+  notes?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+}
+
 export interface Quote {
   id: string; // Q-1042, etc.
   companyId: string;
@@ -113,6 +151,8 @@ export interface Quote {
   tier: CustomerTierType;
   salesRep: string;
   status: QuoteStatus;
+  latestRevisionNumber: number;
+  revisions: QuoteRevision[];
   blendedRiskScore: number;
   riskLevel: RiskLevel;
   riskBreakdown: RiskBreakdown;
@@ -129,6 +169,9 @@ export interface Quote {
   updatedAt: string;
   customerCounterNotes?: string;
   customerRequestedDelivery?: string;
+  allocatedAt?: string;
+  invoicedAt?: string;
+  paidAt?: string;
 }
 
 export interface ApprovalRecord {
@@ -215,14 +258,23 @@ export interface DealAnomaly {
 
 export interface AuditLog {
   id: string;
-  quoteId: string;
+  quoteId?: string;
   actor: string; // e.g., 'Sales Rep (P. Mehta)', 'Customer (Acme)', 'Manager (M. Shah)', 'Finance (R. Iyer)'
+  actorId?: string;
+  actorRole?: UserRole;
+  eventType?: string;
+  entityType?: 'quote' | 'user' | 'policy' | 'invoice' | 'fulfillment';
+  entityId?: string;
   action: string;
   details?: Record<string, any>;
+  previousState?: string;
+  newState?: string;
   createdAt: string;
+  timestamp?: string;
 }
 
 export interface ConfigPolicy {
+  policyVersion: number;
   tierCeilings: Record<CustomerTierType, number>;
   categoryCeilings: Record<ProductCategoryType, number>;
   approvalThresholds: {
@@ -231,6 +283,8 @@ export interface ConfigPolicy {
     singleLineOverageMax: number;
   };
   warehouseFreightWeights: Record<string, { base: number; perUnit: number }>;
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
 }
 
 export interface UserProfile {
@@ -241,6 +295,13 @@ export interface UserProfile {
   avatar: string;
   title: string;
   department: string;
+  status: UserAccountStatus;
+  requestedRole?: UserRole;
+  companyId?: string;
+  createdAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  lastActive?: string;
 }
 
 export interface AppNotification {
@@ -248,7 +309,7 @@ export interface AppNotification {
   title: string;
   message: string;
   timestamp: string;
-  type: 'approval' | 'negotiation' | 'fulfillment' | 'billing' | 'anomaly';
+  type: 'approval' | 'negotiation' | 'fulfillment' | 'billing' | 'anomaly' | 'access_request';
   read: boolean;
   quoteId?: string;
 }
