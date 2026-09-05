@@ -1,6 +1,6 @@
-import React from 'react';
+import React from 'react';    
 import { Clock, User, ShieldCheck, Cpu } from 'lucide-react';
-import { AuditLog } from '../../types';
+import type { AuditLog } from '../../types';
 
 interface ActivityTimelineProps {
   logs: AuditLog[];
