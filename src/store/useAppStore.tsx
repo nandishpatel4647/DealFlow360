@@ -7,15 +7,12 @@ import {
   WarehouseInventory,
   Quote,
   QuoteLine,
-  QuoteRevision,
   Invoice,
   Subscription,
   DealAnomaly,
   AuditLog,
   ConfigPolicy,
-  WarehouseAllocation,
-  UserProfile,
-  AppNotification,
+  ChatMessage,
 } from '../types';
 import {
   SEED_COMPANIES,
@@ -26,8 +23,6 @@ import {
   SEED_INVOICES,
   SEED_SUBSCRIPTIONS,
   SEED_AUDIT_LOGS,
-  SEED_USERS,
-  SEED_NOTIFICATIONS,
 } from '../data/seedData';
 import { DEFAULT_CONFIG_POLICY, evaluateBlendedRisk } from '../logic/riskEngine';
 import { calculateQuoteTotals, calculateLineMetrics } from '../logic/pricingEngine';
@@ -35,50 +30,41 @@ import { scanDealAnomalies } from '../logic/dealHealthEngine';
 import { generateOptimalFulfillment } from '../logic/fulfillmentEngine';
 import { generateHybridBilling } from '../logic/billingEngine';
 import { calculateDealCloseConfidence } from '../logic/aiEngine';
-import { Permissions, validateCustomerAcceptance } from '../logic/permissions';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { DemoUser, DEMO_USERS, ROLE_DEFAULT_AVATARS, findDemoUser } from '../auth/demoUsers';
+
+export interface AuthUser {
+  email: string;
+  name: string;
+  role: UserRole;
+  companyId?: string;
+  title?: string;
+  avatarUrl?: string;
+}
 
 interface AppContextType {
-  currentRoute: 'landing' | 'app';
-  setCurrentRoute: (route: 'landing' | 'app') => void;
+  isAuthenticated: boolean;
+  currentUser: AuthUser | null;
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
-  activeUser: UserProfile;
-  users: UserProfile[];
+  login: (email: string, password: string, role?: UserRole) => void;
   loginAsRole: (role: UserRole) => void;
+  loginAsCustomer: (token: string) => void;
   logout: () => void;
+
+  updateUserProfile: (updates: { name?: string; title?: string; avatarUrl?: string }) => void;
+  resetUserAvatar: () => void;
+  isProfileModalOpen: boolean;
+  setIsProfileModalOpen: (open: boolean) => void;
+
   activeView: string;
-  setActiveView: (view: string) => void;
+  setActiveView: (view: string, quoteId?: string | null) => void;
   selectedQuoteId: string | null;
   setSelectedQuoteId: (id: string | null) => void;
   customerPortalToken: string | null;
   setCustomerPortalToken: (token: string | null) => void;
-  isCustomerPortalPreview: boolean;
-  setIsCustomerPortalPreview: (preview: boolean) => void;
-
-  // Authentication & User Lifecycle
-  signUpUser: (data: {
-    name: string;
-    email: string;
-    password?: string;
-    role: Exclude<UserRole, 'admin'>;
-    companyName?: string;
-  }) => Promise<{ success: boolean; message: string }>;
-  approveUser: (userId: string) => void;
-  rejectUser: (userId: string) => void;
-  suspendUser: (userId: string) => void;
-  reactivateUser: (userId: string) => void;
-  changeUserRole: (userId: string, newRole: UserRole) => void;
-
-  // Notifications & Global Search
-  notifications: AppNotification[];
-  unreadNotificationCount: number;
-  markNotificationRead: (id: string) => void;
-  clearNotifications: () => void;
-  isGlobalSearchOpen: boolean;
-  setIsGlobalSearchOpen: (open: boolean) => void;
 
   // Data
+  users: DemoUser[];
   companies: Company[];
   products: Product[];
   warehouses: Warehouse[];
@@ -89,64 +75,435 @@ interface AppContextType {
   anomalies: DealAnomaly[];
   auditLogs: AuditLog[];
   configPolicy: ConfigPolicy;
+  messages: ChatMessage[];
   activeQuote: Quote | null;
 
   // Operations
+  addUser: (user: DemoUser) => void;
+  addCompany: (company: Company) => void;
+  addProduct: (product: Product) => void;
+  updateProduct: (product: Product) => void;
+  sendMessage: (quoteId: string, text: string, sender: 'customer' | 'rep' | 'manager' | 'system', senderName: string) => void;
   createNewQuote: (companyId: string) => string;
   updateQuoteLine: (quoteId: string, lineId: string, quantity: number, discountPercent: number) => void;
   addLineToQuote: (quoteId: string, productId: string, quantity?: number, discountPercent?: number) => void;
   removeLineFromQuote: (quoteId: string, lineId: string) => void;
   submitForApproval: (quoteId: string) => void;
+  sendToCustomer: (quoteId: string) => void;
+  sendRevisedQuoteToCustomer: (quoteId: string) => void;
   managerApprove: (quoteId: string, comments?: string) => void;
   financeApprove: (quoteId: string, comments?: string) => void;
   returnForRevision: (quoteId: string, comments: string) => void;
+  rejectQuote: (quoteId: string, comments: string, rejectorRole?: 'sales_manager' | 'finance') => void;
   customerCounterOffer: (
     quoteId: string,
     notes: string,
     lineDiscounts: Record<string, number>,
     requestedDelivery?: string
-  ) => { success: boolean; message?: string };
-  customerAcceptQuote: (quoteId: string) => { success: boolean; error?: string };
-  acceptFulfillment: (quoteId: string) => { success: boolean; message?: string };
+  ) => void;
+  customerAcceptQuote: (quoteId: string) => void;
+  acceptFulfillment: (quoteId: string) => { invoiceId: string; isNew: boolean } | null;
   recordPayment: (invoiceId: string) => void;
   resolveAnomaly: (anomalyId: string, actionTaken: string) => void;
   updatePolicy: (updates: Partial<ConfigPolicy>) => void;
-  addCustomAuditLog: (
-    quoteId: string | undefined,
-    actor: string,
-    action: string,
-    details?: any,
-    extra?: { eventType?: string; entityType?: 'quote' | 'user' | 'policy' | 'invoice' | 'fulfillment'; entityId?: string; previousState?: string; newState?: string }
-  ) => void;
+  addCustomAuditLog: (quoteId: string, actor: string, action: string, details?: any) => void;
   resetToSeedData: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentRoute, setCurrentRoute] = useState<'landing' | 'app'>('app');
-  const [users, setUsers] = useState<UserProfile[]>(SEED_USERS);
-  const [userRole, setUserRole] = useState<UserRole>('sales_rep');
-  const [activeUser, setActiveUser] = useState<UserProfile>(SEED_USERS[0]);
-  const [activeView, setActiveView] = useState<string>('dashboard');
-  const [notifications, setNotifications] = useState<AppNotification[]>(SEED_NOTIFICATIONS);
-  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState<boolean>(false);
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>('Q-1042');
-  const [customerPortalToken, setCustomerPortalToken] = useState<string | null>('token_acme');
-  const [isCustomerPortalPreview, setIsCustomerPortalPreview] = useState<boolean>(false);
+const LOCAL_STORAGE_KEY = 'dealflow360_app_state_v2';
+const AUTH_STORAGE_KEY = 'dealflow360_auth_v2';
 
-  const [companies, setCompanies] = useState<Company[]>(SEED_COMPANIES);
-  const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>(SEED_WAREHOUSES);
-  const [inventory, setInventory] = useState<WarehouseInventory[]>(SEED_INVENTORY);
-  const [quotes, setQuotes] = useState<Quote[]>(SEED_QUOTES);
-  const [invoices, setInvoices] = useState<Invoice[]>(SEED_INVOICES);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(SEED_SUBSCRIPTIONS);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(SEED_AUDIT_LOGS);
-  const [configPolicy, setConfigPolicy] = useState<ConfigPolicy>(DEFAULT_CONFIG_POLICY);
-  const [anomalies, setAnomalies] = useState<DealAnomaly[]>(() => scanDealAnomalies(SEED_QUOTES));
+const INITIAL_SEED_MESSAGES: ChatMessage[] = [
+  {
+    id: 'msg-1',
+    quoteId: 'Q-1042',
+    sender: 'rep',
+    senderName: 'P. Mehta (Sales Rep)',
+    text: 'Hello Acme Procurement! We have generated quotation Q-1042 with standard commercial terms. Please review the deliverables.',
+    timestamp: '10:15 AM',
+  },
+  {
+    id: 'msg-2',
+    quoteId: 'Q-1042',
+    sender: 'customer',
+    senderName: 'Acme Procurement',
+    text: 'Thanks P. Mehta. We are reviewing the Installation & Setup line item discounts and requested delivery date.',
+    timestamp: '11:30 AM',
+  },
+  {
+    id: 'msg-3',
+    quoteId: 'Q-1040',
+    sender: 'customer',
+    senderName: 'Vertex Labs Procurement',
+    text: 'Can we reduce the consulting fee by 15% for long term engagement?',
+    timestamp: '02:15 PM',
+  },
+];
+
+export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Helper to retrieve custom uploaded avatar per role from localStorage
+  const getCustomAvatar = (role: UserRole): string => {
+    try {
+      const saved = localStorage.getItem(`dealflow360_avatar_${role}`);
+      if (saved) return saved;
+    } catch {
+      // ignore
+    }
+    return ROLE_DEFAULT_AVATARS[role] || '';
+  };
+
+  // Initialize Auth State from LocalStorage
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    return savedAuth ? JSON.parse(savedAuth).isAuthenticated : false;
+  });
+
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!savedAuth) return null;
+    try {
+      const parsed = JSON.parse(savedAuth);
+      const user: AuthUser = parsed.currentUser;
+      if (user) {
+        const role: UserRole = user.role || parsed.userRole || 'sales_rep';
+        const customAvatar = getCustomAvatar(role);
+        return {
+          ...user,
+          avatarUrl: customAvatar || user.avatarUrl || ROLE_DEFAULT_AVATARS[role],
+          title: user.title || DEMO_USERS.find((u) => u.role === role)?.title || 'Team Member',
+        };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  });
+
+  const [userRole, setUserRoleState] = useState<UserRole>(() => {
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    return savedAuth ? JSON.parse(savedAuth).userRole : 'sales_rep';
+  });
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  const setUserRole = (role: UserRole) => {
+    setUserRoleState(role);
+    const matched = DEMO_USERS.find((u) => u.role === role);
+    const customAvatar = getCustomAvatar(role);
+    const updatedUser: AuthUser = {
+      email: matched?.email || `${role}@dealflow360.com`,
+      name: matched?.name || role.replace('_', ' '),
+      role,
+      title: matched?.title || 'Staff Specialist',
+      companyId: matched?.companyId,
+      avatarUrl: customAvatar,
+    };
+    setCurrentUser(updatedUser);
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated, currentUser: updatedUser, userRole: role })
+    );
+
+    // On switching portals, it should start from the dashboard page only (or customer portal)
+    const targetView = role === 'customer' ? 'portal' : 'dashboard';
+    setActiveView(targetView);
+    setSelectedQuoteId(null);
+  };
+
+  const loginAsRole = (role: UserRole) => {
+    const matched = DEMO_USERS.find((u) => u.role === role);
+    const email = matched?.email || `${role}@dealflow360.com`;
+    const password = matched?.password || 'demo123';
+    if (role === 'customer') {
+      loginAsCustomer('token_acme');
+    } else {
+      login(email, password, role);
+    }
+  };
+
+  const login = (email: string, _password: string, role?: UserRole) => {
+    const assignedRole = role || 'sales_rep';
+    const matched = findDemoUser(email) || DEMO_USERS.find((u) => u.role === assignedRole);
+    const customAvatar = getCustomAvatar(assignedRole);
+
+    const user: AuthUser = {
+      email,
+      name: matched?.name || email.split('@')[0],
+      role: assignedRole,
+      title: matched?.title || 'Staff Specialist',
+      companyId: matched?.companyId,
+      avatarUrl: customAvatar,
+    };
+
+    setIsAuthenticated(true);
+    setCurrentUser(user);
+    setUserRoleState(assignedRole);
+    setActiveView(assignedRole === 'customer' ? 'portal' : 'dashboard');
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated: true, currentUser: user, userRole: assignedRole })
+    );
+  };
+
+  const loginAsCustomer = (token: string) => {
+    const company = SEED_COMPANIES.find((c) => c.portalToken === token) || SEED_COMPANIES[0];
+    const customAvatar = getCustomAvatar('customer');
+    const user: AuthUser = {
+      email: company.contactEmail,
+      name: `${company.name} Procurement`,
+      role: 'customer',
+      title: `Client Account (${company.name})`,
+      companyId: company.id,
+      avatarUrl: customAvatar,
+    };
+
+    setIsAuthenticated(true);
+    setCurrentUser(user);
+    setUserRoleState('customer');
+    setCustomerPortalToken(token);
+    setActiveView('portal');
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated: true, currentUser: user, userRole: 'customer' })
+    );
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  const updateUserProfile = (updates: { name?: string; title?: string; avatarUrl?: string }) => {
+    if (!currentUser) return;
+    const updated: AuthUser = {
+      ...currentUser,
+      ...(updates.name ? { name: updates.name } : {}),
+      ...(updates.title ? { title: updates.title } : {}),
+      ...(updates.avatarUrl ? { avatarUrl: updates.avatarUrl } : {}),
+    };
+    setCurrentUser(updated);
+    if (updates.avatarUrl) {
+      try {
+        localStorage.setItem(`dealflow360_avatar_${currentUser.role}`, updates.avatarUrl);
+      } catch (e) {
+        console.error('Failed to save avatar to localStorage:', e);
+      }
+    }
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated, currentUser: updated, userRole: currentUser.role })
+    );
+  };
+
+  const resetUserAvatar = () => {
+    if (!currentUser) return;
+    try {
+      localStorage.removeItem(`dealflow360_avatar_${currentUser.role}`);
+    } catch {
+      // ignore
+    }
+    const defaultAv = ROLE_DEFAULT_AVATARS[currentUser.role] || '';
+    const updated: AuthUser = { ...currentUser, avatarUrl: defaultAv };
+    setCurrentUser(updated);
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated, currentUser: updated, userRole: currentUser.role })
+    );
+  };
+
+  // State Persistence Initialization
+  const loadSavedData = () => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved state:', e);
+      }
+    }
+    return null;
+  };
+
+  const initialSaved = loadSavedData();
+
+  // URL Hash Routing & Indexing Helper
+  const parseRouteFromHash = (hash: string): { view: string; quoteId: string | null } => {
+    const clean = hash.replace(/^#\/?/, '').trim();
+    if (!clean) return { view: '', quoteId: null };
+
+    const [path, query] = clean.split('?');
+    const params = new URLSearchParams(query || '');
+    const quoteId = params.get('id') || params.get('quoteId') || null;
+
+    if (path.startsWith('quotes/')) {
+      return { view: 'builder', quoteId: path.replace('quotes/', '') };
+    }
+
+    return { view: path, quoteId };
+  };
+
+  const scrollToTopGlobal = () => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      const mainEl = document.querySelector('main');
+      if (mainEl) mainEl.scrollTop = 0;
+    }
+  };
+
+  const getInitialView = () => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const parsed = parseRouteFromHash(window.location.hash);
+      if (parsed.view) return parsed.view;
+    }
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    const isAuth = savedAuth ? JSON.parse(savedAuth).isAuthenticated : false;
+    const role = savedAuth ? JSON.parse(savedAuth).userRole : 'sales_rep';
+    if (!isAuth) return 'landing';
+    return role === 'customer' ? 'portal' : 'dashboard';
+  };
+
+  const [activeView, setActiveViewState] = useState<string>(getInitialView);
+  const [selectedQuoteId, setSelectedQuoteIdState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const parsed = parseRouteFromHash(window.location.hash);
+      if (parsed.quoteId) return parsed.quoteId;
+    }
+    return initialSaved?.selectedQuoteId || 'Q-1042';
+  });
+
+  const setSelectedQuoteId = (id: string | null) => {
+    setSelectedQuoteIdState(id);
+    if (typeof window !== 'undefined' && activeView === 'builder' && id) {
+      const targetHash = `#/builder?id=${id}`;
+      if (window.location.hash !== targetHash) {
+        window.history.pushState(null, '', targetHash);
+      }
+    }
+  };
+
+  const setActiveView = (view: string, quoteId?: string | null) => {
+    setActiveViewState(view);
+    if (quoteId !== undefined) {
+      setSelectedQuoteIdState(quoteId);
+    }
+    if (typeof window !== 'undefined') {
+      const targetHash = quoteId ? `#/${view}?id=${quoteId}` : `#/${view}`;
+      if (window.location.hash !== targetHash) {
+        window.history.pushState(null, '', targetHash);
+      }
+      scrollToTopGlobal();
+    }
+  };
+
+  // Listen to browser Back/Forward (hashchange & popstate)
+  useEffect(() => {
+    const handleNavigation = () => {
+      if (typeof window === 'undefined') return;
+      const { view, quoteId } = parseRouteFromHash(window.location.hash);
+      if (view) {
+        setActiveViewState(view);
+        if (quoteId) {
+          setSelectedQuoteIdState(quoteId);
+        }
+        scrollToTopGlobal();
+      } else {
+        const defaultView = isAuthenticated
+          ? (userRole === 'customer' ? 'portal' : 'dashboard')
+          : 'landing';
+        setActiveViewState(defaultView);
+        scrollToTopGlobal();
+      }
+    };
+
+    window.addEventListener('hashchange', handleNavigation);
+    window.addEventListener('popstate', handleNavigation);
+
+    // Synchronize initial URL hash on mount
+    if (typeof window !== 'undefined') {
+      if (!window.location.hash) {
+        const defaultView = isAuthenticated
+          ? (userRole === 'customer' ? 'portal' : 'dashboard')
+          : 'landing';
+        window.history.replaceState(null, '', `#/${defaultView}`);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('hashchange', handleNavigation);
+      window.removeEventListener('popstate', handleNavigation);
+    };
+  }, [isAuthenticated, userRole]);
+  const [customerPortalToken, setCustomerPortalToken] = useState<string | null>(
+    initialSaved?.customerPortalToken || 'token_acme'
+  );
+
+  const [users, setUsers] = useState<DemoUser[]>(initialSaved?.users || DEMO_USERS);
+  const [companies, setCompanies] = useState<Company[]>(initialSaved?.companies || SEED_COMPANIES);
+  const [products, setProducts] = useState<Product[]>(initialSaved?.products || SEED_PRODUCTS);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>(initialSaved?.warehouses || SEED_WAREHOUSES);
+  const [inventory, setInventory] = useState<WarehouseInventory[]>(initialSaved?.inventory || SEED_INVENTORY);
+  const [quotes, setQuotes] = useState<Quote[]>(initialSaved?.quotes || SEED_QUOTES);
+  const [invoices, setInvoices] = useState<Invoice[]>(initialSaved?.invoices || SEED_INVOICES);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(
+    initialSaved?.subscriptions || SEED_SUBSCRIPTIONS
+  );
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(initialSaved?.auditLogs || SEED_AUDIT_LOGS);
+  const [configPolicy, setConfigPolicy] = useState<ConfigPolicy>(
+    initialSaved?.configPolicy || DEFAULT_CONFIG_POLICY
+  );
+  const [anomalies, setAnomalies] = useState<DealAnomaly[]>(
+    () => initialSaved?.anomalies || scanDealAnomalies(SEED_QUOTES)
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    initialSaved?.messages || INITIAL_SEED_MESSAGES
+  );
 
   const activeQuote = quotes.find((q) => q.id === selectedQuoteId) || quotes[0] || null;
+
+  // Persist State to LocalStorage on modifications
+  useEffect(() => {
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({
+        selectedQuoteId,
+        customerPortalToken,
+        users,
+        companies,
+        products,
+        warehouses,
+        inventory,
+        quotes,
+        invoices,
+        subscriptions,
+        auditLogs,
+        configPolicy,
+        anomalies,
+        messages,
+      })
+    );
+  }, [
+    selectedQuoteId,
+    customerPortalToken,
+    users,
+    companies,
+    products,
+    warehouses,
+    inventory,
+    quotes,
+    invoices,
+    subscriptions,
+    auditLogs,
+    configPolicy,
+    anomalies,
+    messages,
+  ]);
 
   // Realtime Broadcast Channel for cross-tab customer portal sync
   useEffect(() => {
@@ -158,6 +515,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setQuotes((prev) =>
               prev.map((q) => (q.id === payload.quote.id ? payload.quote : q))
             );
+          } else if (payload.type === 'NEW_MESSAGE') {
+            setMessages((prev) => [...prev, payload.message]);
           }
         } catch (err) {
           console.error(err);
@@ -169,297 +528,108 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const broadcastSync = (type: string, data: any) => {
-    try {
-      localStorage.setItem('dealflow_sync_event', JSON.stringify({ type, ...data, timestamp: Date.now() }));
-    } catch (e) {
-      console.warn('Sync broadcast failed:', e);
-    }
+    localStorage.setItem(
+      'dealflow_sync_event',
+      JSON.stringify({ type, timestamp: Date.now(), ...data })
+    );
   };
 
-  // Enriched Audit Log Helper (Append-Only)
-  const addCustomAuditLog = (
-    quoteId: string | undefined,
-    actor: string,
-    action: string,
-    details?: any,
-    extra?: {
-      eventType?: string;
-      entityType?: 'quote' | 'user' | 'policy' | 'invoice' | 'fulfillment';
-      entityId?: string;
-      previousState?: string;
-      newState?: string;
-    }
+  const sendMessage = (
+    quoteId: string,
+    text: string,
+    sender: 'customer' | 'rep' | 'manager' | 'system',
+    senderName: string
   ) => {
+    const newMsg: ChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      quoteId,
+      sender,
+      senderName,
+      text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+    broadcastSync('NEW_MESSAGE', { message: newMsg });
+    addCustomAuditLog(quoteId, senderName, `Sent Chat Message: "${text.slice(0, 40)}..."`);
+  };
+
+  const addCustomAuditLog = (quoteId: string, actor: string, action: string, details?: any) => {
     const newLog: AuditLog = {
-      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       quoteId,
       actor,
-      actorId: activeUser.id,
-      actorRole: activeUser.role,
       action,
       details,
-      eventType: extra?.eventType,
-      entityType: extra?.entityType || (quoteId ? 'quote' : undefined),
-      entityId: extra?.entityId || quoteId,
-      previousState: extra?.previousState,
-      newState: extra?.newState,
       createdAt: new Date().toISOString(),
     };
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  // Recompute Quote Metrics Helper
-  const recomputeQuote = (quote: Quote): Quote => {
-    const { totalListAmount, totalDiscountAmount, totalNetAmount, overallMarginPercent } = calculateQuoteTotals(quote.lines);
-    const evalResult = evaluateBlendedRisk(quote.lines, quote.tier, configPolicy);
+  const addUser = (newUser: DemoUser) => {
+    setUsers((prev) => [newUser, ...prev]);
+  };
+
+  const addCompany = (newCompany: Company) => {
+    setCompanies((prev) => [newCompany, ...prev]);
+  };
+
+  const addProduct = (newProduct: Product) => {
+    setProducts((prev) => [newProduct, ...prev]);
+    // Optionally initialize inventory across warehouses
+    setInventory((prev) => [
+      ...prev,
+      {
+        id: `inv-${Date.now()}-w1`,
+        warehouseId: warehouses[0]?.id || 'wh-west',
+        productId: newProduct.id,
+        quantityOnHand: newProduct.quantityOnHand ?? 150,
+        quantityReserved: 0,
+      },
+    ]);
+  };
+
+  const updateProduct = (updatedProduct: Product) => {
+    setProducts((prev) => prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
+  };
+
+  // Re-evaluate a quote's pricing, risk, and confidence
+  const recomputeQuote = (quote: Quote, customPolicy?: ConfigPolicy): Quote => {
+    const policy = customPolicy || configPolicy;
+    const totals = calculateQuoteTotals(quote.lines);
+    const riskEval = evaluateBlendedRisk(quote.lines, quote.tier, policy);
     const company = companies.find((c) => c.id === quote.companyId);
-    const updatedQuoteBase: Quote = {
+    const confidence = calculateDealCloseConfidence(
+      {
+        ...quote,
+        ...totals,
+        blendedRiskScore: riskEval.blendedScore,
+        riskLevel: riskEval.riskLevel,
+        overallMarginPercent: totals.overallMarginPercent,
+      },
+      company
+    );
+
+    return {
       ...quote,
-      totalListAmount,
-      totalDiscountAmount,
-      totalNetAmount,
-      overallMarginPercent,
-      blendedRiskScore: evalResult.blendedScore,
-      riskLevel: evalResult.riskLevel,
-      riskBreakdown: evalResult.riskBreakdown,
+      totalListAmount: totals.totalListAmount,
+      totalDiscountAmount: totals.totalDiscountAmount,
+      totalNetAmount: totals.totalNetAmount,
+      overallMarginPercent: totals.overallMarginPercent,
+      blendedRiskScore: riskEval.blendedScore,
+      riskLevel: riskEval.riskLevel,
+      riskBreakdown: riskEval.riskBreakdown,
+      approvalStage:
+        quote.status === 'Draft' || quote.status === 'Under Negotiation'
+          ? riskEval.approvalStage
+          : quote.approvalStage,
+      approvalAssignedTo: riskEval.assignedTo,
+      dealConfidence: confidence.score,
       updatedAt: new Date().toISOString(),
     };
-    const confidence = calculateDealCloseConfidence(updatedQuoteBase, company);
-
-    return {
-      ...updatedQuoteBase,
-      dealConfidence: confidence.score,
-    };
   };
 
-  // Authentication & User Sign Up (Supabase Auth with Unique Email Check)
-  const signUpUser = async (data: {
-    name: string;
-    email: string;
-    password?: string;
-    role: Exclude<UserRole, 'admin'>;
-    companyName?: string;
-  }): Promise<{ success: boolean; message: string }> => {
-    // 1. One Email = One Account Validation
-    const emailLower = data.email.trim().toLowerCase();
-    const existing = users.find((u) => u.email.toLowerCase() === emailLower);
-    if (existing) {
-      return { success: false, message: 'An account already exists for this email.' };
-    }
-
-    // 2. Reject Admin self-assignment
-    if ((data.role as any) === 'admin') {
-      return { success: false, message: 'Administrative accounts must be provisioned by an existing system administrator.' };
-    }
-
-    // 3. Supabase Auth Registration
-    if (isSupabaseConfigured()) {
-      try {
-        const { error } = await supabase.auth.signUp({
-          email: emailLower,
-          password: data.password || 'SecureDealFlow2026!',
-          options: {
-            data: {
-              name: data.name,
-              requestedRole: data.role,
-            },
-          },
-        });
-        if (error) {
-          if (error.message.toLowerCase().includes('already registered')) {
-            return { success: false, message: 'An account already exists for this email.' };
-          }
-        }
-      } catch (err) {
-        console.warn('Supabase Auth error, continuing with local persistence:', err);
-      }
-    }
-
-    // 4. Create User Profile with Pending Status
-    const newUser: UserProfile = {
-      id: `user-${Date.now()}`,
-      name: data.name,
-      email: emailLower,
-      role: data.role,
-      requestedRole: data.role,
-      avatar: `https://images.unsplash.com/photo-${1535713875000 + Math.floor(Math.random() * 500)}?w=150&auto=format&fit=crop&q=80`,
-      title:
-        data.role === 'sales_rep'
-          ? 'Enterprise Sales Representative'
-          : data.role === 'sales_manager'
-          ? 'Regional Sales Manager'
-          : data.role === 'finance'
-          ? 'Commercial Finance Officer'
-          : 'Strategic Procurement Officer',
-      department: data.companyName || (data.role === 'customer' ? 'Acme Industries' : 'Revenue Operations'),
-      companyId: data.role === 'customer' ? 'comp-acme' : undefined,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-
-    setUsers((prev) => [...prev, newUser]);
-
-    // 5. Notify Admin of Pending Request
-    const newNotif: AppNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'New Access Request',
-      message: `${data.name} (${data.email}) requested ${data.role.replace('_', ' ')} access. Review required.`,
-      timestamp: 'Just now',
-      type: 'access_request',
-      read: false,
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
-
-    addCustomAuditLog(
-      undefined,
-      'System Auth',
-      `User Sign Up: ${data.name} (${data.role.replace('_', ' ')}) - Status: Pending Approval`,
-      { email: emailLower, requestedRole: data.role },
-      { eventType: 'USER_SIGNED_UP', entityType: 'user', entityId: newUser.id }
-    );
-
-    return {
-      success: true,
-      message: 'Your access request has been submitted. An administrator must approve your account before you can enter DealFlow360.',
-    };
-  };
-
-  // Admin User Lifecycle Actions
-  const approveUser = (userId: string) => {
-    if (!Permissions.canManageUsers(activeUser)) {
-      alert('Unauthorized: Only administrators can approve user registrations.');
-      return;
-    }
-
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const updated: UserProfile = {
-          ...u,
-          status: 'active',
-          approvedBy: activeUser.id,
-          approvedAt: new Date().toISOString(),
-        };
-        addCustomAuditLog(
-          undefined,
-          `Admin (${activeUser.name})`,
-          `Approved Access Request for ${u.name}`,
-          { role: u.role, email: u.email },
-          { eventType: 'USER_APPROVED', entityType: 'user', entityId: u.id, previousState: 'pending', newState: 'active' }
-        );
-        return updated;
-      })
-    );
-  };
-
-  const rejectUser = (userId: string) => {
-    if (!Permissions.canManageUsers(activeUser)) {
-      alert('Unauthorized: Only administrators can reject access requests.');
-      return;
-    }
-
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const updated: UserProfile = { ...u, status: 'rejected' };
-        addCustomAuditLog(
-          undefined,
-          `Admin (${activeUser.name})`,
-          `Rejected Access Request for ${u.name}`,
-          { email: u.email },
-          { eventType: 'USER_REJECTED', entityType: 'user', entityId: u.id, previousState: u.status, newState: 'rejected' }
-        );
-        return updated;
-      })
-    );
-  };
-
-  const suspendUser = (userId: string) => {
-    if (!Permissions.canManageUsers(activeUser)) return;
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const updated: UserProfile = { ...u, status: 'suspended' };
-        addCustomAuditLog(
-          undefined,
-          `Admin (${activeUser.name})`,
-          `Suspended User Account: ${u.name}`,
-          {},
-          { eventType: 'USER_SUSPENDED', entityType: 'user', entityId: u.id, previousState: u.status, newState: 'suspended' }
-        );
-        return updated;
-      })
-    );
-  };
-
-  const reactivateUser = (userId: string) => {
-    if (!Permissions.canManageUsers(activeUser)) return;
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const updated: UserProfile = { ...u, status: 'active' };
-        addCustomAuditLog(
-          undefined,
-          `Admin (${activeUser.name})`,
-          `Reactivated User Account: ${u.name}`,
-          {},
-          { eventType: 'USER_REACTIVATED', entityType: 'user', entityId: u.id, previousState: u.status, newState: 'active' }
-        );
-        return updated;
-      })
-    );
-  };
-
-  const changeUserRole = (userId: string, newRole: UserRole) => {
-    if (!Permissions.canManageUsers(activeUser)) return;
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id !== userId) return u;
-        const updated: UserProfile = { ...u, role: newRole };
-        addCustomAuditLog(
-          undefined,
-          `Admin (${activeUser.name})`,
-          `Changed Role for ${u.name} from ${u.role} to ${newRole}`,
-          {},
-          { eventType: 'USER_ROLE_CHANGED', entityType: 'user', entityId: u.id, previousState: u.role, newState: newRole }
-        );
-        return updated;
-      })
-    );
-  };
-
-  // Role Switching & Demo Personas
-  const loginAsRole = (role: UserRole) => {
-    const matched = users.find((u) => u.role === role && u.status === 'active') || users.find((u) => u.role === role) || users[0];
-    setUserRole(role);
-    setActiveUser(matched);
-    setCurrentRoute('app');
-    setIsCustomerPortalPreview(false);
-
-    // Contextual landing screen for role
-    if (role === 'customer') {
-      setActiveView('portal');
-    } else if (role === 'admin') {
-      setActiveView('admin_config');
-    } else if (role === 'finance') {
-      setActiveView('dashboard');
-    } else {
-      setActiveView('dashboard');
-    }
-  };
-
-  const logout = () => {
-    setCurrentRoute('landing');
-    setIsCustomerPortalPreview(false);
-  };
-
-  // Operations: Create Quote (Guarded)
   const createNewQuote = (companyId: string): string => {
-    if (!Permissions.canCreateQuote(activeUser)) {
-      alert('Unauthorized: You do not have permission to initialize new quotations.');
-      return '';
-    }
-
     const company = companies.find((c) => c.id === companyId) || companies[0];
     const newId = `Q-${Math.floor(1043 + quotes.length)}`;
     const newQuote: Quote = {
@@ -467,26 +637,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       companyId: company.id,
       companyName: company.name,
       tier: company.tierId,
-      salesRep: activeUser.name,
+      salesRep: currentUser?.name || 'P. Mehta',
       status: 'Draft',
-      latestRevisionNumber: 1,
-      revisions: [
-        {
-          revisionNumber: 1,
-          createdAt: new Date().toISOString(),
-          createdBy: activeUser.name,
-          totalListAmount: 0,
-          totalDiscountAmount: 0,
-          totalNetAmount: 0,
-          marginPercent: 0,
-          riskScore: 0.5,
-          riskLevel: 'LOW',
-          lineDiscounts: {},
-          revisionStatus: 'Draft',
-          approvalStatus: 'Pending Manager',
-          notes: 'Initial Draft Created',
-        },
-      ],
       blendedRiskScore: 0,
       riskLevel: 'LOW',
       riskBreakdown: {
@@ -512,7 +664,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setQuotes((prev) => [newQuote, ...prev]);
     setSelectedQuoteId(newId);
     setActiveView('builder');
-    addCustomAuditLog(newId, `Sales Rep (${activeUser.name})`, 'Draft Quote Created', { company: company.name }, { eventType: 'QUOTE_CREATED' });
+    addCustomAuditLog(newId, currentUser?.name || 'Sales Rep (P. Mehta)', 'Draft Quote Created', { company: company.name });
     return newId;
   };
 
@@ -593,7 +745,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
 
         const updatedQuote = recomputeQuote({ ...q, lines: [...q.lines, newLine] });
-        addCustomAuditLog(quoteId, `Sales Rep (${activeUser.name})`, `Added ${product.name}`, {
+        addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', `Added ${product.name}`, {
           qty: quantity,
           discount: `${discountPercent}%`,
           net: `₹${metrics.netAmount.toLocaleString('en-IN')}`,
@@ -612,7 +764,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const updatedLines = q.lines.filter((l) => l.id !== lineId);
         const updatedQuote = recomputeQuote({ ...q, lines: updatedLines });
         if (targetLine) {
-          addCustomAuditLog(quoteId, `Sales Rep (${activeUser.name})`, `Removed ${targetLine.productName}`);
+          addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', `Removed ${targetLine.productName}`);
         }
         broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
         return updatedQuote;
@@ -620,7 +772,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  // Submit For Approval
   const submitForApproval = (quoteId: string) => {
     setQuotes((prev) =>
       prev.map((q) => {
@@ -629,51 +780,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         let nextStatus: Quote['status'] = 'Draft';
         let stage: Quote['approvalStage'] = 'None';
-        let govStatus: QuoteRevision['approvalStatus'] = 'Pending Manager';
+        let assignedTo = 'Auto-Approved';
 
-        if (evalResult.riskLevel === 'HIGH') {
+        if (evalResult.riskLevel === 'HIGH' || evalResult.riskLevel === 'MEDIUM') {
           nextStatus = 'Pending Manager';
           stage = 'Sales Manager';
-          govStatus = 'Pending Manager';
+          assignedTo = 'M. Shah (Sales Manager)';
           addCustomAuditLog(
             quoteId,
-            'System Governance',
-            `HIGH Risk Flagged (Score ${evalResult.blendedScore}) - Two-Tier Approval Required: Manager (M. Shah) -> Finance (R. Iyer)`,
-            { reasons: evalResult.riskBreakdown.reasons },
-            { eventType: 'RISK_EVALUATED', previousState: 'Draft', newState: 'Pending Manager' }
-          );
-        } else if (evalResult.riskLevel === 'MEDIUM') {
-          nextStatus = 'Pending Manager';
-          stage = 'Sales Manager';
-          govStatus = 'Pending Manager';
-          addCustomAuditLog(
-            quoteId,
-            'System Governance',
-            `MEDIUM Risk Flagged (Score ${evalResult.blendedScore}) - Routed to Sales Manager (M. Shah)`,
-            {},
-            { eventType: 'RISK_EVALUATED', previousState: 'Draft', newState: 'Pending Manager' }
+            currentUser?.name || 'Sales Rep (P. Mehta)',
+            `Submitted for Manager Approval (${evalResult.riskLevel} Risk, Score ${evalResult.blendedScore})`,
+            { reasons: evalResult.riskBreakdown.reasons }
           );
         } else {
-          nextStatus = 'Fully Approved';
+          nextStatus = 'Manager Approved';
           stage = 'Fully Approved';
-          govStatus = 'Fully Approved';
-          addCustomAuditLog(quoteId, 'System Governance', 'Auto-Approved (Low Risk Deal Compliant with Ceilings)', {}, { eventType: 'AUTO_APPROVED', previousState: 'Draft', newState: 'Fully Approved' });
+          assignedTo = 'P. Mehta (Sales Rep)';
+          addCustomAuditLog(
+            quoteId,
+            'System Governance',
+            'Compliant Deal Auto-Approved. Ready for Sales Rep to send to customer.'
+          );
         }
-
-        const updatedRevs = q.revisions.map((r) =>
-          r.revisionNumber === q.latestRevisionNumber
-            ? { ...r, approvalStatus: govStatus, revisionStatus: 'Active' as const }
-            : r
-        );
 
         const updatedQuote: Quote = {
           ...q,
           status: nextStatus,
           approvalStage: stage,
+          approvalAssignedTo: assignedTo,
           blendedRiskScore: evalResult.blendedScore,
           riskLevel: evalResult.riskLevel,
           riskBreakdown: evalResult.riskBreakdown,
-          revisions: updatedRevs,
         };
         broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
         return updatedQuote;
@@ -681,55 +818,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  // Sales Manager Approval
-  const managerApprove = (quoteId: string, comments = 'Commercial terms approved by Sales Manager.') => {
-    if (!Permissions.canApproveManager(activeUser)) {
-      alert('Unauthorized: You do not have permission to grant Sales Manager approval.');
-      return;
-    }
-
+  const sendToCustomer = (quoteId: string) => {
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-
-        // If HIGH risk, must forward to Finance
-        if (q.riskLevel === 'HIGH') {
-          addCustomAuditLog(quoteId, `Sales Manager (${activeUser.name})`, 'Approved & Forwarded to Finance', {
-            comments,
-            nextStage: 'Finance (R. Iyer)',
-          }, { eventType: 'MANAGER_APPROVED', previousState: 'Pending Manager', newState: 'Pending Finance' });
-
-          const updatedRevs = q.revisions.map((r) =>
-            r.revisionNumber === q.latestRevisionNumber
-              ? { ...r, approvalStatus: 'Pending Finance' as const }
-              : r
-          );
-
-          const updated: Quote = {
-            ...q,
-            status: 'Pending Finance',
-            approvalStage: 'Finance',
-            approvalAssignedTo: 'R. Iyer (Finance)',
-            revisions: updatedRevs,
-          };
-          broadcastSync('QUOTE_UPDATED', { quote: updated });
-          return updated;
-        }
-
-        // If MEDIUM risk, Manager approval completes governance
-        addCustomAuditLog(quoteId, `Sales Manager (${activeUser.name})`, 'Approved Quotation (Single-Tier Complete)', { comments }, { eventType: 'MANAGER_APPROVED', previousState: 'Pending Manager', newState: 'Fully Approved' });
-        const updatedRevs = q.revisions.map((r) =>
-          r.revisionNumber === q.latestRevisionNumber
-            ? { ...r, approvalStatus: 'Fully Approved' as const, approvedBy: activeUser.name, approvedAt: new Date().toISOString() }
-            : r
-        );
-
+        addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', 'Sent Approved Quotation to Customer Portal');
         const updated: Quote = {
           ...q,
-          status: 'Fully Approved',
-          approvalStage: 'Fully Approved',
-          approvalAssignedTo: 'Completed',
-          revisions: updatedRevs,
+          status: 'Pending Customer',
+          approvalStage: 'Customer Review' as any,
+          approvalAssignedTo: 'Customer Portal',
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
+  const sendRevisedQuoteToCustomer = (quoteId: string) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', 'Sent Revised Quotation to Customer');
+        const updated: Quote = {
+          ...q,
+          status: 'Pending Customer',
+          approvalStage: 'Customer Review' as any,
+          approvalAssignedTo: 'Customer Portal',
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
+  // Sales Manager Approval
+  const managerApprove = (quoteId: string, comments = 'Commercial terms approved by Sales Manager.') => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        addCustomAuditLog(quoteId, 'Sales Manager (M. Shah)', 'Approved Quotation Terms', { comments });
+        const updated: Quote = {
+          ...q,
+          status: 'Manager Approved',
+          approvalStage: 'Sales Manager',
+          approvalAssignedTo: 'P. Mehta (Sales Rep)',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
@@ -739,30 +872,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Finance Approval
   const financeApprove = (quoteId: string, comments = 'Financial margins and credit exposure approved.') => {
-    if (!Permissions.canApproveFinance(activeUser)) {
-      alert('Unauthorized: You do not have permission to grant Finance approval.');
-      return;
-    }
-
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-        addCustomAuditLog(quoteId, `Finance (${activeUser.name})`, 'Approved High-Risk Deal (Final Commercial Release)', {
+        addCustomAuditLog(quoteId, 'Finance (R. Iyer)', 'Approved High-Risk Quotation Terms (Final Approval)', {
           comments,
-        }, { eventType: 'FINANCE_APPROVED', previousState: 'Pending Finance', newState: 'Fully Approved' });
-
-        const updatedRevs = q.revisions.map((r) =>
-          r.revisionNumber === q.latestRevisionNumber
-            ? { ...r, approvalStatus: 'Fully Approved' as const, approvedBy: activeUser.name, approvedAt: new Date().toISOString() }
-            : r
-        );
-
+        });
         const updated: Quote = {
           ...q,
-          status: 'Fully Approved',
+          status: 'Finance Approved',
           approvalStage: 'Fully Approved',
           approvalAssignedTo: 'Completed',
-          revisions: updatedRevs,
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
@@ -770,17 +890,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
+  // Return for Revision
   const returnForRevision = (quoteId: string, comments: string) => {
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-        addCustomAuditLog(quoteId, activeUser.role === 'finance' ? `Finance (${activeUser.name})` : `Sales Manager (${activeUser.name})`, 'Returned for Revision', {
+        const actor = userRole === 'finance' ? 'Finance (R. Iyer)' : 'Sales Manager (M. Shah)';
+        addCustomAuditLog(quoteId, actor, 'Returned Quotation for Revision', {
           reason: comments,
-        }, { eventType: 'RETURNED_FOR_REVISION', previousState: q.status, newState: 'Draft' });
+        });
         const updated: Quote = {
           ...q,
-          status: 'Draft',
+          status: 'Returned for Revision',
           approvalStage: 'None',
+          approvalAssignedTo: 'P. Mehta (Sales Rep)',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
@@ -788,328 +911,226 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  // Customer Portal Counter Offer (Spawns New Commercial Revision)
+  // Reject Quote
+  const rejectQuote = (quoteId: string, comments: string, rejectorRole?: 'sales_manager' | 'finance') => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        const isFinance = rejectorRole === 'finance' || userRole === 'finance';
+        const actor = isFinance ? 'Finance (R. Iyer)' : 'Sales Manager (M. Shah)';
+        const statusVal: Quote['status'] = isFinance ? 'Rejected by Finance' : 'Rejected by Sales Manager';
+
+        addCustomAuditLog(quoteId, actor, `Rejected Quotation`, { reason: comments });
+        const updated: Quote = {
+          ...q,
+          status: statusVal,
+          approvalStage: 'None',
+          approvalAssignedTo: 'Closed',
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
+  // Customer Portal Counter Offer
   const customerCounterOffer = (
     quoteId: string,
     notes: string,
     lineDiscounts: Record<string, number>,
     requestedDelivery?: string
-  ): { success: boolean; message?: string } => {
-    if (isCustomerPortalPreview) {
-      return { success: false, message: 'Preview Mode: Counter-offer submission is disabled during administrative inspection.' };
-    }
+  ) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
 
-    const q = quotes.find((quote) => quote.id === quoteId);
-    if (!q) return { success: false, message: 'Quotation not found.' };
-
-    const newRevNumber = q.latestRevisionNumber + 1;
-
-    // Apply requested discounts to quote lines
-    const updatedLines = q.lines.map((l) => {
-      const newDiscount = lineDiscounts[l.id] !== undefined ? lineDiscounts[l.id] : l.discountPercent;
-      const metrics = calculateLineMetrics(
-        l.quantity,
-        l.unitListPrice,
-        l.unitCostPrice,
-        newDiscount,
-        l.discountCeiling
-      );
-      return {
-        ...l,
-        discountPercent: newDiscount,
-        counterDiscountPercent: newDiscount,
-        netAmount: metrics.netAmount,
-        marginPercent: metrics.marginPercent,
-        isOverLimit: metrics.isOverLimit,
-        overLimitPoints: metrics.overLimitPoints,
-      };
-    });
-
-    const recomputed = recomputeQuote({
-      ...q,
-      lines: updatedLines,
-      customerCounterNotes: notes,
-      customerRequestedDelivery: requestedDelivery,
-    });
-
-    // Determine approval routing for new revision
-    let nextStage: Quote['approvalStage'] = 'None';
-    let govStatus: QuoteRevision['approvalStatus'] = 'Pending Manager';
-
-    if (recomputed.riskLevel === 'HIGH') {
-      nextStage = 'Sales Manager';
-      govStatus = 'Pending Manager';
-    } else if (recomputed.riskLevel === 'MEDIUM') {
-      nextStage = 'Sales Manager';
-      govStatus = 'Pending Manager';
-    } else {
-      nextStage = 'Fully Approved';
-      govStatus = 'Fully Approved';
-    }
-
-    // Mark previous revision as Superseded and append new revision
-    const supersededRevisions = q.revisions.map((r) =>
-      r.revisionNumber === q.latestRevisionNumber
-        ? { ...r, revisionStatus: 'Superseded' as const }
-        : r
-    );
-
-    const newRevision: QuoteRevision = {
-      revisionNumber: newRevNumber,
-      createdAt: new Date().toISOString(),
-      createdBy: `Customer (${q.companyName})`,
-      totalListAmount: recomputed.totalListAmount,
-      totalDiscountAmount: recomputed.totalDiscountAmount,
-      totalNetAmount: recomputed.totalNetAmount,
-      marginPercent: recomputed.overallMarginPercent,
-      riskScore: recomputed.blendedRiskScore,
-      riskLevel: recomputed.riskLevel,
-      lineDiscounts,
-      revisionStatus: 'Under Negotiation',
-      approvalStatus: govStatus,
-      notes,
-    };
-
-    const updatedQuote: Quote = {
-      ...recomputed,
-      status: 'Under Negotiation',
-      approvalStage: nextStage,
-      latestRevisionNumber: newRevNumber,
-      revisions: [...supersededRevisions, newRevision],
-    };
-
-    setQuotes((prev) => prev.map((item) => (item.id === quoteId ? updatedQuote : item)));
-
-    addCustomAuditLog(
-      quoteId,
-      `Customer (${q.companyName})`,
-      `Counter-Offer Submitted (Created Revision ${newRevNumber})`,
-      {
-        notes,
-        requestedDelivery,
-        newBlendedRisk: recomputed.blendedRiskScore,
-        revisionsCount: updatedQuote.revisions.length,
-      },
-      { eventType: 'COUNTER_OFFER_SUBMITTED', previousState: q.status, newState: 'Under Negotiation' }
-    );
-
-    // Notify sales manager
-    const notif: AppNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Customer Counter-Offer Received',
-      message: `${q.companyName} submitted Revision ${newRevNumber} on ${q.id}. Risk recalculated to ${recomputed.blendedRiskScore}.`,
-      timestamp: 'Just now',
-      type: 'negotiation',
-      read: false,
-      quoteId,
-    };
-    setNotifications((prev) => [notif, ...prev]);
-
-    broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
-    return { success: true };
-  };
-
-  // Customer Accepts Quote (Strict 6-Point Guard)
-  const customerAcceptQuote = (quoteId: string): { success: boolean; error?: string } => {
-    const q = quotes.find((quote) => quote.id === quoteId);
-    if (!q) return { success: false, error: 'Quotation not found.' };
-
-    const validation = validateCustomerAcceptance(q, activeUser, isCustomerPortalPreview);
-    if (!validation.allowed) {
-      return { success: false, error: validation.error };
-    }
-
-    const updatedRevs = q.revisions.map((r) =>
-      r.revisionNumber === q.latestRevisionNumber
-        ? { ...r, revisionStatus: 'Active' as const, approvalStatus: 'Fully Approved' as const }
-        : r
-    );
-
-    const updated: Quote = {
-      ...q,
-      status: 'Customer Accepted',
-      revisions: updatedRevs,
-    };
-
-    setQuotes((prev) => prev.map((item) => (item.id === quoteId ? updated : item)));
-
-    addCustomAuditLog(
-      quoteId,
-      `Customer (${q.companyName})`,
-      `Accepted Terms on Revision ${q.latestRevisionNumber} & Confirmed Quotation`,
-      { totalNet: `₹${q.totalNetAmount.toLocaleString('en-IN')}` },
-      { eventType: 'TERMS_ACCEPTED', previousState: q.status, newState: 'Customer Accepted' }
-    );
-
-    const notif: AppNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Deal Confirmed by Customer',
-      message: `${q.companyName} accepted terms on ${q.id}. Queued for multi-warehouse fulfillment.`,
-      timestamp: 'Just now',
-      type: 'fulfillment',
-      read: false,
-      quoteId,
-    };
-    setNotifications((prev) => [notif, ...prev]);
-
-    broadcastSync('QUOTE_UPDATED', { quote: updated });
-    return { success: true };
-  };
-
-  // Option B: Fulfillment State Lock (Admin Only Executable)
-  const acceptFulfillment = (quoteId: string): { success: boolean; message?: string } => {
-    const q = quotes.find((quote) => quote.id === quoteId);
-    if (!q) return { success: false, message: 'Deal not found.' };
-
-    if (!Permissions.canAcceptFulfillment(activeUser)) {
-      return {
-        success: false,
-        message: 'Unauthorized: Warehouse allocation release is restricted to Platform Administrators.',
-      };
-    }
-
-    if (q.status === 'Allocated' || q.status === 'Invoiced' || q.status === 'Paid') {
-      return {
-        success: false,
-        message: 'Allocation has already been confirmed for this deal.',
-      };
-    }
-
-    const fulfillmentPlan = generateOptimalFulfillment(quoteId, q.lines, warehouses, inventory);
-    const { invoice, subscriptions: newSubs } = generateHybridBilling(q);
-
-    // Deduct allocated inventory
-    setInventory((prevInv) =>
-      prevInv.map((invItem) => {
-        const alloc = fulfillmentPlan.allocations.find(
-          (a) => a.productId === invItem.productId && a.warehouseId === invItem.warehouseId
-        );
-        if (alloc) {
+        const updatedLines = q.lines.map((l) => {
+          const newDiscount = lineDiscounts[l.id] !== undefined ? lineDiscounts[l.id] : l.discountPercent;
+          const metrics = calculateLineMetrics(
+            l.quantity,
+            l.unitListPrice,
+            l.unitCostPrice,
+            newDiscount,
+            l.discountCeiling
+          );
           return {
-            ...invItem,
-            quantityOnHand: Math.max(0, invItem.quantityOnHand - alloc.allocatedQty),
+            ...l,
+            discountPercent: newDiscount,
+            counterDiscountPercent: newDiscount,
+            netAmount: metrics.netAmount,
+            marginPercent: metrics.marginPercent,
+            isOverLimit: metrics.isOverLimit,
+            overLimitPoints: metrics.overLimitPoints,
           };
-        }
-        return invItem;
-      })
-    );
+        });
 
-    setInvoices((invs) => [invoice, ...invs]);
-    setSubscriptions((subs) => [...newSubs, ...subs]);
+        const recomputed = recomputeQuote({
+          ...q,
+          lines: updatedLines,
+          customerCounterNotes: notes,
+          customerRequestedDelivery: requestedDelivery,
+        });
 
-    const updatedQuote: Quote = {
-      ...q,
-      status: 'Invoiced',
-      allocatedAt: new Date().toISOString(),
-      invoicedAt: new Date().toISOString(),
-    };
-
-    setQuotes((prev) => prev.map((item) => (item.id === quoteId ? updatedQuote : item)));
-
-    addCustomAuditLog(
-      quoteId,
-      `Admin (${activeUser.name})`,
-      'Confirmed Warehouse Allocation Split & Generated Invoice',
-      {
-        shipments: fulfillmentPlan.totalShipments,
-        freightCost: `₹${fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}`,
-        invoiceId: invoice.id,
-      },
-      { eventType: 'ALLOCATION_CONFIRMED', previousState: q.status, newState: 'Invoiced' }
-    );
-
-    broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
-    return { success: true, message: `Allocation confirmed! Invoice ${invoice.id} generated.` };
-  };
-
-  // Record Payment
-  const recordPayment = (invoiceId: string) => {
-    setInvoices((prev) =>
-      prev.map((inv) => {
-        if (inv.id !== invoiceId) return inv;
-        const updated = {
-          ...inv,
-          status: 'Paid' as const,
-          paidAt: new Date().toISOString(),
+        const updatedQuote: Quote = {
+          ...recomputed,
+          status: 'Customer Revision Requested',
+          approvalStage: 'None',
+          approvalAssignedTo: 'P. Mehta (Sales Rep)',
         };
 
-        // Update corresponding quote status to Paid
-        setQuotes((prevQuotes) =>
-          prevQuotes.map((q) => (q.id === inv.quoteId ? { ...q, status: 'Paid', paidAt: new Date().toISOString() } : q))
+        addCustomAuditLog(
+          quoteId,
+          `Customer (${q.companyName})`,
+          'Submitted Revision Request & Counter Terms via Portal',
+          {
+            notes,
+            requestedDelivery,
+            newBlendedRisk: recomputed.blendedRiskScore,
+          }
         );
 
-        addCustomAuditLog(inv.quoteId, `Finance (${activeUser.name})`, `Settled Payment for ${inv.id}`, {
-          amount: `₹${inv.totalAmount.toLocaleString('en-IN')}`,
-        }, { eventType: 'PAYMENT_RECORDED', entityType: 'invoice', entityId: inv.id, previousState: 'Sent', newState: 'Paid' });
+        broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
+        return updatedQuote;
+      })
+    );
+  };
 
+  // Customer Accepts Quote
+  const customerAcceptQuote = (quoteId: string) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+
+        let nextStatus: Quote['status'] = 'Customer Approved';
+        let stage: Quote['approvalStage'] = 'None';
+        let assignedTo = 'Finance & Ops';
+
+        if (q.riskLevel === 'HIGH') {
+          nextStatus = 'Pending Finance';
+          stage = 'Finance';
+          assignedTo = 'R. Iyer (Finance)';
+          addCustomAuditLog(
+            quoteId,
+            `Customer (${q.companyName})`,
+            'Accepted Commercial Terms. High-Risk Quotation routed to Finance (R. Iyer) for final approval.'
+          );
+        } else {
+          nextStatus = 'Customer Approved';
+          stage = 'Fully Approved';
+          assignedTo = 'Finance & Ops (Fulfillment)';
+          addCustomAuditLog(
+            quoteId,
+            `Customer (${q.companyName})`,
+            'Accepted Terms & Confirmed Quotation via Portal. Advanced to Fulfillment.'
+          );
+        }
+
+        const updated: Quote = {
+          ...q,
+          status: nextStatus,
+          approvalStage: stage,
+          approvalAssignedTo: assignedTo,
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
       })
     );
   };
 
-  // Resolve Anomaly
-  const resolveAnomaly = (anomalyId: string, actionTaken: string) => {
-    setAnomalies((prev) =>
-      prev.map((a) => {
-        if (a.id !== anomalyId) return a;
-        addCustomAuditLog(a.quoteId, `Sales Operations (${activeUser.name})`, `Resolved Anomaly: ${a.anomalyType}`, {
-          actionTaken,
-        }, { eventType: 'ANOMALY_RESOLVED' });
-        return { ...a, isResolved: true };
-      })
-    );
-  };
+  // Accept Fulfillment Split & Auto-generate Hybrid Invoice (ONE TIME ONLY PER ORDER)
+  const acceptFulfillment = (quoteId: string) => {
+    const existingInvoice = invoices.find((inv) => inv.quoteId === quoteId);
 
-  // Policy Versioning & Update
-  const updatePolicy = (updates: Partial<ConfigPolicy>) => {
-    if (!Permissions.canModifyPolicies(activeUser)) {
-      alert('Unauthorized: Only administrators can modify governance policies.');
-      return;
+    if (existingInvoice) {
+      addCustomAuditLog(quoteId, 'System Operations', `Invoice ${existingInvoice.id} already exists for quote ${quoteId}.`);
+      setActiveView('invoices');
+      return { invoiceId: existingInvoice.id, isNew: false };
     }
 
-    const nextVersion = configPolicy.policyVersion + 1;
-    const newPolicy: ConfigPolicy = {
-      ...configPolicy,
-      ...updates,
-      policyVersion: nextVersion,
-      lastModifiedBy: activeUser.name,
-      lastModifiedAt: new Date().toISOString(),
-    };
+    const targetQuote = quotes.find((q) => q.id === quoteId);
+    if (!targetQuote) return null;
 
-    setConfigPolicy(newPolicy);
+    const fulfillmentPlan = generateOptimalFulfillment(quoteId, targetQuote.lines, warehouses, inventory);
+    const { invoice, subscriptions: newSubs } = generateHybridBilling(targetQuote);
 
-    // Re-evaluate all draft quotations against new policy
+    setInvoices((invs) => {
+      if (invs.some((i) => i.quoteId === quoteId || i.id === invoice.id)) {
+        return invs;
+      }
+      return [invoice, ...invs];
+    });
+
+    setSubscriptions((subs) => [...newSubs, ...subs]);
+
+    addCustomAuditLog(quoteId, 'Operations Fulfillment Engine', 'Fulfillment Allocation Accepted & Invoice Generated', {
+      shipments: fulfillmentPlan.totalShipments,
+      freightCost: `₹${fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}`,
+      invoiceGenerated: invoice.id,
+    });
+
     setQuotes((prev) =>
       prev.map((q) => {
-        if (q.status === 'Draft') {
-          return recomputeQuote(q);
-        }
-        return q;
+        if (q.id !== quoteId) return q;
+        const updated: Quote = {
+          ...q,
+          status: 'Invoiced',
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
       })
     );
 
-    addCustomAuditLog(
-      undefined,
-      `Admin (${activeUser.name})`,
-      `Updated Governance Policy to Version ${nextVersion}`,
-      { changes: updates },
-      { eventType: 'POLICY_UPDATED', entityType: 'policy', previousState: `v${configPolicy.policyVersion}`, newState: `v${nextVersion}` }
+    setActiveView('invoices');
+    return { invoiceId: invoice.id, isNew: true };
+  };
+
+  // Record Invoice Payment
+  const recordPayment = (invoiceId: string) => {
+    setInvoices((prev) =>
+      prev.map((inv) => {
+        if (inv.id !== invoiceId) return inv;
+        const updatedInv: Invoice = {
+          ...inv,
+          status: 'Paid',
+          paidAt: new Date().toISOString(),
+        };
+
+        setQuotes((qList) =>
+          qList.map((q) => (q.id === inv.quoteId ? { ...q, status: 'Paid' } : q))
+        );
+
+        addCustomAuditLog(inv.quoteId, 'Finance (R. Iyer)', `Payment Verified & Settled (₹${inv.totalAmount.toLocaleString('en-IN')})`);
+        return updatedInv;
+      })
     );
   };
 
-  const markNotificationRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+  // Anomaly Actions
+  const resolveAnomaly = (anomalyId: string, actionTaken: string) => {
+    setAnomalies((prev) =>
+      prev.map((anom) => {
+        if (anom.id !== anomalyId) return anom;
+        addCustomAuditLog(
+          anom.quoteId,
+          'Sales Operations Manager',
+          `Anomaly Action: ${actionTaken}`,
+          { anomaly: anom.anomalyType }
+        );
+        return { ...anom, isResolved: true };
+      })
     );
   };
 
-  const clearNotifications = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const updatePolicy = (updates: Partial<ConfigPolicy>) => {
+    setConfigPolicy((prev) => {
+      const nextPolicy = { ...prev, ...updates };
+      setQuotes((qList) => qList.map((q) => recomputeQuote(q, nextPolicy)));
+      return nextPolicy;
+    });
   };
-
-  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
 
   const resetToSeedData = () => {
+    setUsers(DEMO_USERS);
     setCompanies(SEED_COMPANIES);
     setProducts(SEED_PRODUCTS);
     setWarehouses(SEED_WAREHOUSES);
@@ -1120,43 +1141,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAuditLogs(SEED_AUDIT_LOGS);
     setAnomalies(scanDealAnomalies(SEED_QUOTES));
     setConfigPolicy(DEFAULT_CONFIG_POLICY);
-    setNotifications(SEED_NOTIFICATIONS);
     setSelectedQuoteId('Q-1042');
-    setUsers(SEED_USERS);
-    setIsCustomerPortalPreview(false);
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
   };
 
   return (
     <AppContext.Provider
       value={{
-        currentRoute,
-        setCurrentRoute,
+        isAuthenticated,
+        currentUser,
         userRole,
         setUserRole,
-        activeUser,
-        users,
+        login,
         loginAsRole,
+        loginAsCustomer,
         logout,
+        updateUserProfile,
+        resetUserAvatar,
+        isProfileModalOpen,
+        setIsProfileModalOpen,
         activeView,
         setActiveView,
         selectedQuoteId,
         setSelectedQuoteId,
         customerPortalToken,
         setCustomerPortalToken,
-        isCustomerPortalPreview,
-        setIsCustomerPortalPreview,
-        signUpUser,
-        approveUser,
-        rejectUser,
-        suspendUser,
-        reactivateUser,
-        changeUserRole,
-        notifications,
-        unreadNotificationCount,
-        markNotificationRead,
-        clearNotifications,
-        isGlobalSearchOpen,
-        setIsGlobalSearchOpen,
+        users,
         companies,
         products,
         warehouses,
@@ -1167,15 +1177,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         anomalies,
         auditLogs,
         configPolicy,
+        messages,
         activeQuote,
+        addUser,
+        addCompany,
+        addProduct,
+        updateProduct,
+        sendMessage,
         createNewQuote,
         updateQuoteLine,
         addLineToQuote,
         removeLineFromQuote,
         submitForApproval,
+        sendToCustomer,
+        sendRevisedQuoteToCustomer,
         managerApprove,
         financeApprove,
         returnForRevision,
+        rejectQuote,
         customerCounterOffer,
         customerAcceptQuote,
         acceptFulfillment,
@@ -1198,3 +1217,4 @@ export const useAppStore = () => {
   }
   return context;
 };
+

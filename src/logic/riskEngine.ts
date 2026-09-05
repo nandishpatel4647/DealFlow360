@@ -1,7 +1,6 @@
 import { QuoteLine, CustomerTierType, RiskLevel, RiskBreakdown, ConfigPolicy } from '../types';
 
 export const DEFAULT_CONFIG_POLICY: ConfigPolicy = {
-  policyVersion: 4,
   tierCeilings: {
     Bronze: 5,
     Silver: 10,

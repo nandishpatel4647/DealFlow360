@@ -1,335 +1,280 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import {
+  ShieldCheck,
   LayoutDashboard,
-  FilePlus2,
   Kanban,
+  FilePlus2,
   CheckSquare,
   Truck,
+  ExternalLink,
   CreditCard,
+  FileCheck,
+  RefreshCw,
   HeartPulse,
+  Package,
   Settings,
-  ShieldCheck,
-  ChevronDown,
-  RotateCcw,
+  BarChart3,
   Sparkles,
   LogOut,
   UserCheck,
-  Users,
+  X,
+  Camera,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { hasPermission, Permission } from '../../auth/permissions';
+import { UserRole, Quote, DealAnomaly } from '../../types';
+import { ROLE_DEFAULT_AVATARS } from '../../auth/demoUsers';
+import { BrandLogo } from '../common/BrandLogo';
 
 interface SidebarProps {
-  onOpenAuth: () => void;
+  isOpenMobile: boolean;
+  onCloseMobile: () => void;
+  onOpenAskDealFlow: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onOpenAuth }) => {
-  const {
-    activeView,
-    setActiveView,
-    userRole,
-    activeUser,
-    users,
-    loginAsRole,
-    logout,
-    setCurrentRoute,
-    quotes,
-    anomalies,
-    resetToSeedData,
-  } = useAppStore();
+interface NavItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission: Permission;
+  badge?: string | number;
+  badgeColor?: string;
+}
 
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // Close popover when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setIsProfileOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+export const Sidebar: React.FC<SidebarProps> = ({
+  isOpenMobile,
+  onCloseMobile,
+  onOpenAskDealFlow,
+}) => {
+  const { userRole, activeView, setActiveView, setSelectedQuoteId, quotes, anomalies, logout, currentUser, setIsProfileModalOpen } =
+    useAppStore();
 
   const pendingApprovalsCount = quotes.filter(
-    (q) => q.status === 'Pending Manager' || q.status === 'Pending Finance'
+    (q: Quote) => q.status === 'Pending Manager' || q.status === 'Pending Finance'
   ).length;
-  const activeAnomaliesCount = anomalies.filter((a) => !a.isResolved).length;
-  const pendingUsersCount = users.filter((u) => u.status === 'pending').length;
 
-  // Strict Role-Specific Navigation Definitions
-  const getNavItemsForRole = () => {
-    switch (userRole) {
-      case 'sales_rep':
-        return [
-          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-          { id: 'pipeline', label: 'Pipeline', icon: Kanban },
-          { id: 'builder', label: 'Quote Builder', icon: FilePlus2 },
-          { id: 'deal_health', label: 'Deal Intelligence', icon: HeartPulse, badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined, badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
-        ];
-      case 'sales_manager':
-        return [
-          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-          { id: 'pipeline', label: 'Pipeline', icon: Kanban },
-          { id: 'approvals', label: 'Approvals & Risk', icon: CheckSquare, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined, badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' },
-          { id: 'deal_health', label: 'Deal Health', icon: HeartPulse, badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined, badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
-        ];
-      case 'finance':
-        return [
-          { id: 'dashboard', label: 'Financial Overview', icon: LayoutDashboard },
-          { id: 'approvals', label: 'Approvals & Margin', icon: CheckSquare, badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined, badgeColor: 'bg-amber-100 text-amber-800 border-amber-200' },
-          { id: 'billing', label: 'Billing & Subs', icon: CreditCard },
-          { id: 'deal_health', label: 'Deal Health', icon: HeartPulse, badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined, badgeColor: 'bg-rose-100 text-rose-800 border-rose-200' },
-        ];
-      case 'admin':
-        return [
-          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-          { id: 'admin_config', label: 'Admin Control Center', icon: Settings, badge: pendingUsersCount > 0 ? `${pendingUsersCount} New` : undefined, badgeColor: 'bg-blue-100 text-blue-800 border-blue-200' },
-          { id: 'pipeline', label: 'Pipeline Review', icon: Kanban },
-          { id: 'fulfillment', label: 'Warehouse Hubs', icon: Truck },
-          { id: 'deal_health', label: 'Deal Health', icon: HeartPulse },
-        ];
-      default:
-        return [
-          { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard },
-        ];
-    }
+  const activeAnomaliesCount = anomalies.filter((a: DealAnomaly) => !a.isResolved).length;
+
+  // Define nav sections based on permissions
+  const isCustomer = userRole === 'customer';
+
+  const mainNav: NavItem[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
+    { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban, permission: 'pipeline.view' },
+    { id: 'builder', label: 'Quotations', icon: FilePlus2, permission: 'quotations.view' },
+    { id: 'products', label: 'Products', icon: Package, permission: 'quotations.view' },
+  ];
+
+  const opsNav: NavItem[] = [
+    {
+      id: 'approvals',
+      label: 'Approvals',
+      icon: CheckSquare,
+      badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
+      badgeColor: 'bg-amber-500 text-white',
+      permission: 'approvals.view',
+    },
+    { id: 'fulfillment', label: 'Fulfillment', icon: Truck, permission: 'fulfillment.view' },
+    { id: 'subscriptions', label: 'Subscriptions', icon: RefreshCw, permission: 'billing.view' },
+    { id: 'invoices', label: 'Invoices', icon: FileCheck, permission: 'billing.view' },
+  ];
+
+  const customerNav: NavItem[] = [
+    { id: 'portal', label: 'Customer Portal', icon: ExternalLink, badge: 'Live', badgeColor: 'bg-blue-600 text-white', permission: 'customer_portal.access' },
+  ];
+
+  const insightsNav: NavItem[] = [
+    {
+      id: 'deal_health',
+      label: 'Deal Health',
+      icon: HeartPulse,
+      badge: activeAnomaliesCount > 0 ? activeAnomaliesCount : undefined,
+      badgeColor: 'bg-rose-500 text-white',
+      permission: 'deal_health.view',
+    },
+    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, permission: 'reports.view' },
+  ];
+
+  const adminNav: NavItem[] = [
+    { id: 'admin_config', label: 'Configuration', icon: Settings, permission: 'admin.configure' },
+  ];
+
+  const filterByPermission = (items: NavItem[]) =>
+    items.filter((item) => hasPermission(userRole, item.permission));
+
+  const roleDisplayNames: Record<UserRole, { title: string; badgeBg: string }> = {
+    sales_rep: { title: 'Sales Rep (P. Mehta)', badgeBg: 'bg-blue-600' },
+    sales_manager: { title: 'Sales Manager (M. Shah)', badgeBg: 'bg-purple-600' },
+    finance: { title: 'Finance & Ops (R. Iyer)', badgeBg: 'bg-emerald-600' },
+    customer: { title: 'Customer Portal (Acme)', badgeBg: 'bg-indigo-600' },
+    admin: { title: 'Administrator', badgeBg: 'bg-slate-700' },
   };
 
-  const navItems = getNavItemsForRole();
+  const renderNavGroup = (title: string, items: NavItem[]) => {
+    const filtered = filterByPermission(items);
+    if (filtered.length === 0) return null;
+
+    return (
+      <div className="space-y-1">
+        <div className="px-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+          {title}
+        </div>
+        {filtered.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeView === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => {
+                if (item.id === 'builder' || item.id === 'pipeline') {
+                  setSelectedQuoteId(null);
+                }
+                setActiveView(item.id);
+                onCloseMobile();
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                isActive
+                  ? 'bg-[#0176D3] text-white font-bold shadow-xs'
+                  : 'text-slate-700 hover:bg-slate-200/70 hover:text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                <span>{item.label}</span>
+              </div>
+              {item.badge !== undefined && (
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${item.badgeColor}`}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <aside
-      className="w-60 shrink-0 h-screen sticky top-0 flex flex-col z-30 transition-all select-none border-r"
-      style={{
-        backgroundColor: 'var(--bg-surface)',
-        borderColor: 'var(--border-default)',
-      }}
-    >
-      {/* Brand Header — Clean institutional logo (No v2.0 badge) */}
-      <div
-        className="h-16 px-4 flex items-center justify-between cursor-pointer border-b"
-        style={{ borderColor: 'var(--border-default)' }}
-        onClick={() => setCurrentRoute('landing')}
-        title="View Product Landing Page"
+    <>
+      {/* Mobile Backdrop */}
+      {isOpenMobile && (
+        <div
+          onClick={onCloseMobile}
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs md:hidden"
+        />
+      )}
+
+      {/* Sidebar Container - Salesforce Light Canvas */}
+      <aside
+        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-[#EEF4F9] border-r border-slate-200 flex flex-col justify-between transition-transform duration-200 ease-in-out shadow-xs ${
+          isOpenMobile ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
       >
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center shadow-xs text-white">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-sm font-bold tracking-tight text-[var(--text-primary)]">
-              DealFlow<span className="text-[var(--accent-primary)] font-mono">360</span>
-            </span>
-            <p className="text-[10px] text-[var(--text-tertiary)] font-medium tracking-tight">
-              Govern. Grow. Close.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Role-Specific Navigation */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        <div>
-          <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
-            {userRole === 'finance'
-              ? 'Finance Workspace'
-              : userRole === 'admin'
-              ? 'Operations & Control'
-              : userRole === 'sales_manager'
-              ? 'Sales Leadership'
-              : 'Commercial Sales'}
-          </span>
-
-          <div className="mt-2 space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeView === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveView(item.id)}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all cursor-pointer text-left ${
-                    isActive
-                      ? 'bg-[var(--accent-primary)] text-white shadow-xs font-semibold'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-muted)]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${
-                        isActive ? 'text-white' : 'text-[var(--text-tertiary)]'
-                      }`}
-                    />
-                    <span className="truncate">{item.label}</span>
-                  </div>
-
-                  {item.badge !== undefined && (
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
-                        isActive
-                          ? 'bg-white text-[var(--accent-primary)] border-white'
-                          : item.badgeColor || 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Footer Profile & Demo Switcher */}
-      <div
-        className="p-3 border-t relative"
-        style={{ borderColor: 'var(--border-default)' }}
-        ref={popoverRef}
-      >
-        <div className="flex items-center justify-between px-2 pb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
-              {userRole.replace('_', ' ')}
-            </span>
-          </div>
-
+        {/* Top Header */}
+        <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-white">
           <button
             onClick={() => {
-              resetToSeedData();
-              alert('Demo state restored to baseline seed data.');
+              setActiveView('landing');
+              onCloseMobile();
             }}
-            title="Reset to clean baseline data"
-            className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] flex items-center gap-1 cursor-pointer transition-colors"
+            title="View Public Landing Page"
+            className="flex items-center text-left cursor-pointer transition hover:opacity-90"
           >
-            <RotateCcw className="w-2.5 h-2.5" />
-            Reset
+            <BrandLogo size="md" subtitle="Salesforce Light CPQ" />
+          </button>
+
+          <button
+            onClick={onCloseMobile}
+            className="md:hidden text-slate-500 hover:text-slate-800 p-1"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* User Card trigger */}
-        <button
-          onClick={() => setIsProfileOpen(!isProfileOpen)}
-          className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-[var(--bg-muted)] transition-colors cursor-pointer text-left border border-transparent hover:border-[var(--border-default)]"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <img
-              src={activeUser.avatar}
-              alt={activeUser.name}
-              className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
-            />
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                {activeUser.name}
-              </p>
-              <p className="text-[10px] text-[var(--text-tertiary)] truncate">
-                {activeUser.title.split('•')[0]}
-              </p>
-            </div>
-          </div>
-          <ChevronDown
-            className={`w-3.5 h-3.5 text-[var(--text-tertiary)] transition-transform ${
-              isProfileOpen ? 'rotate-180' : ''
-            }`}
-          />
-        </button>
+        {/* Navigation Links */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+          {renderNavGroup('Main Navigation', mainNav)}
+          {renderNavGroup('Operations & Workflow', opsNav)}
+          {renderNavGroup('Analytics & Intelligence', insightsNav)}
+          {renderNavGroup('System Administration', adminNav)}
+        </div>
 
-        {/* Role Switcher Popover */}
-        {isProfileOpen && (
-          <div
-            className="absolute bottom-full left-3 right-3 mb-2 p-2 rounded-xl shadow-lg border animate-slide-up z-50 text-xs"
-            style={{
-              backgroundColor: 'var(--bg-surface)',
-              borderColor: 'var(--border-default)',
-            }}
-          >
-            <div className="px-2 py-1.5 border-b pb-2 mb-2" style={{ borderColor: 'var(--border-subtle)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
-                Active User & Role
-              </p>
-              <p className="text-xs font-bold text-[var(--text-primary)] mt-0.5">
-                {activeUser.name}
-              </p>
-              <p className="text-[11px] text-[var(--text-secondary)] truncate">
-                {activeUser.email}
-              </p>
-            </div>
+        {/* Bottom Actions & User Profile */}
+        <div className="p-3 border-t border-slate-200 space-y-3 bg-white">
+          {/* Ask DealFlow AI Button */}
+          {!isCustomer && (
+            <button
+              onClick={() => {
+                onOpenAskDealFlow();
+                onCloseMobile();
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-blue-50 text-[#0176D3] border border-blue-200 hover:bg-blue-100 transition cursor-pointer shadow-2xs"
+            >
+              <Sparkles className="w-4 h-4 text-[#0176D3]" />
+              <span>Ask DealFlow AI</span>
+            </button>
+          )}
 
-            <div className="space-y-1">
-              <p className="px-2 text-[10px] font-semibold text-[var(--text-muted)]">
-                Switch Demo Persona:
-              </p>
-              {users
-                .filter((u) => u.status === 'active')
-                .map((u) => {
-                  const isCurrent = u.role === userRole;
-                  return (
-                    <button
-                      key={u.id}
-                      onClick={() => {
-                        loginAsRole(u.role);
-                        setIsProfileOpen(false);
+          {/* User Profile Card with 3D Embossed Depth & Avatar Settings */}
+          <div className="p-2 rounded-xl bg-white border border-slate-200 card-3d flex items-center justify-between shadow-xs">
+            <button
+              onClick={() => {
+                setIsProfileModalOpen(true);
+                onCloseMobile();
+              }}
+              title="Click to customize profile photo & settings"
+              className="flex items-center gap-2.5 overflow-hidden text-left flex-1 min-w-0 group cursor-pointer"
+            >
+              {/* Profile Avatar with Camera Indicator */}
+              <div className="relative shrink-0">
+                <div className="w-9 h-9 rounded-full ring-2 ring-blue-500/20 shadow-xs overflow-hidden bg-slate-100 flex items-center justify-center border border-slate-300">
+                  {currentUser?.avatarUrl ? (
+                    <img
+                      src={currentUser.avatarUrl}
+                      alt={currentUser.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = ROLE_DEFAULT_AVATARS[userRole] || '';
                       }}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors cursor-pointer ${
-                        isCurrent
-                          ? 'bg-[var(--accent-primary-soft)] text-[var(--accent-primary)] font-semibold'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      <img
-                        src={u.avatar}
-                        alt={u.name}
-                        className="w-5 h-5 rounded-full object-cover shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs truncate">{u.name}</p>
-                        <p className="text-[10px] opacity-75 capitalize truncate">{u.role.replace('_', ' ')}</p>
-                      </div>
-                      {isCurrent && <UserCheck className="w-3.5 h-3.5 text-[var(--accent-primary)] shrink-0" />}
-                    </button>
-                  );
-                })}
-            </div>
+                    />
+                  ) : (
+                    <span className="text-xs font-extrabold text-[#0176D3]">
+                      {currentUser?.name?.charAt(0) || 'U'}
+                    </span>
+                  )}
+                </div>
+                {/* Camera upload badge */}
+                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#0176D3] text-white flex items-center justify-center shadow-xs border border-white group-hover:scale-115 transition">
+                  <Camera className="w-2 h-2 text-white" />
+                </div>
+              </div>
 
-            <div className="mt-2 pt-2 border-t space-y-1" style={{ borderColor: 'var(--border-subtle)' }}>
-              <button
-                onClick={() => {
-                  setCurrentRoute('landing');
-                  setIsProfileOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
-                <span>Visit Landing Page</span>
-              </button>
+              {/* Name and Role Title */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-extrabold text-slate-900 truncate block group-hover:text-[#0176D3] transition">
+                    {currentUser?.name || (roleDisplayNames[userRole as UserRole]?.title) || 'Current User'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                  {currentUser?.title || roleDisplayNames[userRole as UserRole]?.title || 'Active Session'}
+                </p>
+              </div>
+            </button>
 
-              <button
-                onClick={() => {
-                  onOpenAuth();
-                  setIsProfileOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-              >
-                <Users className="w-3.5 h-3.5 text-blue-600" />
-                <span>Sign In / Sign Up</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  logout();
-                  setIsProfileOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
-              </button>
-            </div>
+            {/* Logout action */}
+            <button
+              onClick={logout}
+              title="Sign Out"
+              className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer shrink-0 ml-1"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-        )}
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </>
   );
 };

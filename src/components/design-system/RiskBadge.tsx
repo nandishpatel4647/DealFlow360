@@ -1,6 +1,5 @@
 import React from 'react';
 import { RiskLevel } from '../../types';
-import { ShieldAlert, ShieldCheck, Shield } from 'lucide-react';
 
 interface RiskBadgeProps {
   level: RiskLevel;
@@ -9,40 +8,40 @@ interface RiskBadgeProps {
 }
 
 export const RiskBadge: React.FC<RiskBadgeProps> = ({ level, score, size = 'md' }) => {
-  const config = {
+  const styles = {
     LOW: {
-      bg: 'bg-[var(--success-soft)]',
-      text: 'text-[var(--success)]',
-      icon: ShieldCheck,
-      label: 'Low Risk',
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
+      dot: 'bg-emerald-500',
     },
     MEDIUM: {
-      bg: 'bg-[var(--warning-soft)]',
-      text: 'text-[var(--warning)]',
-      icon: Shield,
-      label: 'Medium Risk',
+      bg: 'bg-amber-50',
+      text: 'text-amber-800',
+      border: 'border-amber-200',
+      dot: 'bg-amber-500',
     },
     HIGH: {
-      bg: 'bg-[var(--danger-soft)]',
-      text: 'text-[var(--danger)]',
-      icon: ShieldAlert,
-      label: 'High Risk',
+      bg: 'bg-rose-50',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
+      dot: 'bg-rose-500',
     },
   };
 
-  const current = config[level] || config.LOW;
-  const Icon = current.icon;
-  const sizing = size === 'sm' ? 'px-2 py-0.5 text-[11px] gap-1' : 'px-2.5 py-1 text-xs gap-1.5';
+  const current = styles[level] || styles.LOW;
+  const padding = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs';
 
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-full ${current.bg} ${current.text} ${sizing}`}
+      className={`inline-flex items-center gap-1.5 font-semibold rounded-full border ${current.bg} ${current.text} ${current.border} ${padding}`}
     >
-      <Icon className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
-      <span>{current.label}</span>
+      <span className={`w-1.5 h-1.5 rounded-full ${current.dot} pulse-indicator`} />
+      <span>{level} RISK</span>
       {score !== undefined && (
-        <span className="opacity-60 font-mono text-[10px]">({score.toFixed(1)})</span>
+        <span className="opacity-80 text-[10px] font-mono">({score.toFixed(1)})</span>
       )}
     </span>
   );
 };
+

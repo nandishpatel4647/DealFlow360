@@ -30,16 +30,36 @@ export interface ProductCategory {
   targetMargin: number; // e.g. 40, 25, 65
 }
 
+export interface ProductVariant {
+  id?: string;
+  attribute: string;
+  values: string;
+  extraPrice: string;
+}
+
+export interface ProductPricelist {
+  id?: string;
+  tier: string;
+  currency: string;
+  priceRule: string;
+}
+
 export interface Product {
   id: string;
   name: string;
   categoryId: ProductCategoryType;
-  listPrice: number; // In INR (₹)
+  listPrice: number; // In INR (₹) or USD
   costPrice: number;
   isRecurring: boolean;
   billingPeriod?: 'monthly' | 'quarterly' | 'yearly';
   sku: string;
   description: string;
+  unit?: string;
+  taxPercent?: number;
+  status?: 'Active' | 'Archived';
+  quantityOnHand?: number;
+  variants?: ProductVariant[];
+  pricelists?: ProductPricelist[];
   suggestedUpsells?: {
     productId: string;
     reason: string;
@@ -64,36 +84,25 @@ export interface WarehouseInventory {
   quantityReserved: number;
 }
 
-export type UserAccountStatus = 'pending' | 'active' | 'rejected' | 'suspended';
-
-export type RevisionLifecycleStatus =
+export type QuoteStatus =
   | 'Draft'
-  | 'Under Negotiation'
-  | 'Active'
-  | 'Superseded';
-
-export type GovernanceApprovalStatus =
   | 'Pending Manager'
+  | 'Manager Approved'
+  | 'Pending Customer'
+  | 'Customer Revision Requested'
+  | 'Customer Approved'
   | 'Pending Finance'
-  | 'Fully Approved'
-  | 'Rejected';
-
-export type DealWorkflowStatus =
-  | 'Draft'
-  | 'Submitted'
-  | 'Pending Manager'
-  | 'Pending Finance'
+  | 'Finance Approved'
   | 'Fully Approved'
   | 'Under Negotiation'
-  | 'Customer Accepted'
+  | 'Returned for Revision'
+  | 'Confirmed'
   | 'Fulfillment'
-  | 'Allocated'
   | 'Invoiced'
   | 'Paid'
   | 'Rejected'
-  | 'Superseded';
-
-export type QuoteStatus = DealWorkflowStatus;
+  | 'Rejected by Sales Manager'
+  | 'Rejected by Finance';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -126,24 +135,6 @@ export interface RiskBreakdown {
   reasons: string[];
 }
 
-export interface QuoteRevision {
-  revisionNumber: number;
-  createdAt: string;
-  createdBy: string;
-  totalListAmount: number;
-  totalDiscountAmount: number;
-  totalNetAmount: number;
-  marginPercent: number;
-  riskScore: number;
-  riskLevel: RiskLevel;
-  lineDiscounts: Record<string, number>;
-  revisionStatus: RevisionLifecycleStatus;
-  approvalStatus: GovernanceApprovalStatus;
-  notes?: string;
-  approvedBy?: string;
-  approvedAt?: string;
-}
-
 export interface Quote {
   id: string; // Q-1042, etc.
   companyId: string;
@@ -151,8 +142,6 @@ export interface Quote {
   tier: CustomerTierType;
   salesRep: string;
   status: QuoteStatus;
-  latestRevisionNumber: number;
-  revisions: QuoteRevision[];
   blendedRiskScore: number;
   riskLevel: RiskLevel;
   riskBreakdown: RiskBreakdown;
@@ -169,9 +158,6 @@ export interface Quote {
   updatedAt: string;
   customerCounterNotes?: string;
   customerRequestedDelivery?: string;
-  allocatedAt?: string;
-  invoicedAt?: string;
-  paidAt?: string;
 }
 
 export interface ApprovalRecord {
@@ -252,29 +238,21 @@ export interface DealAnomaly {
   severity: AnomalySeverity;
   description: string;
   recommendedAction: string;
+  actionTaken?: string;
   isResolved: boolean;
   createdAt: string;
 }
 
 export interface AuditLog {
   id: string;
-  quoteId?: string;
+  quoteId: string;
   actor: string; // e.g., 'Sales Rep (P. Mehta)', 'Customer (Acme)', 'Manager (M. Shah)', 'Finance (R. Iyer)'
-  actorId?: string;
-  actorRole?: UserRole;
-  eventType?: string;
-  entityType?: 'quote' | 'user' | 'policy' | 'invoice' | 'fulfillment';
-  entityId?: string;
   action: string;
   details?: Record<string, any>;
-  previousState?: string;
-  newState?: string;
   createdAt: string;
-  timestamp?: string;
 }
 
 export interface ConfigPolicy {
-  policyVersion: number;
   tierCeilings: Record<CustomerTierType, number>;
   categoryCeilings: Record<ProductCategoryType, number>;
   approvalThresholds: {
@@ -283,34 +261,13 @@ export interface ConfigPolicy {
     singleLineOverageMax: number;
   };
   warehouseFreightWeights: Record<string, { base: number; perUnit: number }>;
-  lastModifiedBy?: string;
-  lastModifiedAt?: string;
 }
 
-export interface UserProfile {
+export interface ChatMessage {
   id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  avatar: string;
-  title: string;
-  department: string;
-  status: UserAccountStatus;
-  requestedRole?: UserRole;
-  companyId?: string;
-  createdAt?: string;
-  approvedBy?: string;
-  approvedAt?: string;
-  lastActive?: string;
-}
-
-export interface AppNotification {
-  id: string;
-  title: string;
-  message: string;
+  quoteId: string;
+  sender: 'customer' | 'rep' | 'manager' | 'system';
+  senderName: string;
+  text: string;
   timestamp: string;
-  type: 'approval' | 'negotiation' | 'fulfillment' | 'billing' | 'anomaly' | 'access_request';
-  read: boolean;
-  quoteId?: string;
 }
-

@@ -3,87 +3,110 @@ import { QuoteStatus } from '../../types';
 
 interface StatusBadgeProps {
   status: QuoteStatus;
-  size?: 'sm' | 'md';
 }
 
-export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' }) => {
-  const config: Record<QuoteStatus, { bg: string; text: string; dot: string }> = {
+export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
+  const styles: Record<QuoteStatus, { bg: string; text: string; border: string }> = {
     Draft: {
-      bg: 'bg-[var(--bg-muted)]',
-      text: 'text-[var(--text-tertiary)]',
-      dot: 'bg-[var(--text-muted)]',
+      bg: 'bg-slate-100',
+      text: 'text-slate-700',
+      border: 'border-slate-300',
     },
     'Pending Manager': {
-      bg: 'bg-[var(--warning-soft)]',
-      text: 'text-[var(--warning)]',
-      dot: 'bg-[var(--warning)]',
+      bg: 'bg-amber-50',
+      text: 'text-amber-800',
+      border: 'border-amber-200',
+    },
+    'Manager Approved': {
+      bg: 'bg-[#EAF5FE]',
+      text: 'text-[#0176D3]',
+      border: 'border-blue-200',
+    },
+    'Pending Customer': {
+      bg: 'bg-indigo-50',
+      text: 'text-indigo-800',
+      border: 'border-indigo-200',
+    },
+    'Customer Revision Requested': {
+      bg: 'bg-orange-50',
+      text: 'text-orange-800',
+      border: 'border-orange-200',
+    },
+    'Customer Approved': {
+      bg: 'bg-teal-50',
+      text: 'text-teal-800',
+      border: 'border-teal-200',
     },
     'Pending Finance': {
-      bg: 'bg-[var(--info-soft)]',
-      text: 'text-[var(--info)]',
-      dot: 'bg-[var(--info)]',
+      bg: 'bg-purple-50',
+      text: 'text-purple-800',
+      border: 'border-purple-200',
+    },
+    'Finance Approved': {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
     },
     'Fully Approved': {
-      bg: 'bg-[var(--success-soft)]',
-      text: 'text-[var(--success)]',
-      dot: 'bg-[var(--success)]',
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
     },
     'Under Negotiation': {
-      bg: 'bg-[var(--accent-primary-soft)]',
-      text: 'text-[var(--accent-primary)]',
-      dot: 'bg-[var(--accent-primary)]',
+      bg: 'bg-blue-50',
+      text: 'text-blue-800',
+      border: 'border-blue-200',
+    },
+    Confirmed: {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
     },
     Fulfillment: {
-      bg: 'bg-blue-50 dark:bg-blue-500/12',
-      text: 'text-blue-600 dark:text-blue-400',
-      dot: 'bg-blue-500',
+      bg: 'bg-indigo-50',
+      text: 'text-indigo-800',
+      border: 'border-indigo-200',
     },
     Invoiced: {
-      bg: 'bg-indigo-50 dark:bg-indigo-500/12',
-      text: 'text-indigo-600 dark:text-indigo-400',
-      dot: 'bg-indigo-500',
+      bg: 'bg-sky-50',
+      text: 'text-sky-800',
+      border: 'border-sky-200',
     },
     Paid: {
-      bg: 'bg-emerald-50 dark:bg-emerald-500/12',
-      text: 'text-emerald-700 dark:text-emerald-400',
-      dot: 'bg-emerald-500',
+      bg: 'bg-teal-50',
+      text: 'text-teal-800',
+      border: 'border-teal-200',
     },
-    'Customer Accepted': {
-      bg: 'bg-emerald-50 dark:bg-emerald-500/12',
-      text: 'text-emerald-700 dark:text-emerald-400',
-      dot: 'bg-emerald-500',
-    },
-    Allocated: {
-      bg: 'bg-blue-50 dark:bg-blue-500/12',
-      text: 'text-blue-600 dark:text-blue-400',
-      dot: 'bg-blue-500',
-    },
-    Submitted: {
-      bg: 'bg-[var(--warning-soft)]',
-      text: 'text-[var(--warning)]',
-      dot: 'bg-[var(--warning)]',
-    },
-    Superseded: {
-      bg: 'bg-[var(--surface-sunken)]',
-      text: 'text-[var(--text-tertiary)]',
-      dot: 'bg-[var(--text-muted)]',
+    'Returned for Revision': {
+      bg: 'bg-[#FFF4E5]',
+      text: 'text-[#B76E00]',
+      border: 'border-[#FFD599]',
     },
     Rejected: {
-      bg: 'bg-[var(--danger-soft)]',
-      text: 'text-[var(--danger)]',
-      dot: 'bg-[var(--danger)]',
+      bg: 'bg-rose-50',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
+    },
+    'Rejected by Sales Manager': {
+      bg: 'bg-rose-50',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
+    },
+    'Rejected by Finance': {
+      bg: 'bg-rose-50',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
     },
   };
 
-  const current = config[status] || config.Draft;
-  const sizing = size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs';
+  const current = styles[status] || styles.Draft;
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-medium rounded-full ${current.bg} ${current.text} ${sizing}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${current.bg} ${current.text} ${current.border}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${current.dot} shrink-0`} />
       {status}
     </span>
   );
 };
+
