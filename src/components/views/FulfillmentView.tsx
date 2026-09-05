@@ -1,14 +1,8 @@
 import React, { useState } from 'react';
 import {
   Truck,
-  Package,
-  Layers,
   CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  ShieldCheck,
   Building,
-  DollarSign,
   Boxes,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
@@ -21,15 +15,19 @@ export const FulfillmentView: React.FC = () => {
     warehouses,
     inventory,
     products,
+    invoices,
     selectedQuoteId,
     setSelectedQuoteId,
     acceptFulfillment,
     setActiveView,
   } = useAppStore();
 
-  const [demoOrderQty, setDemoOrderQty] = useState<number>(20);
-
   const activeQuote = quotes.find((q) => q.id === selectedQuoteId) || quotes[0];
+
+  const existingInvoice = invoices.find((inv) => inv.quoteId === activeQuote?.id);
+  const isAlreadyInvoiced =
+    Boolean(existingInvoice) || activeQuote?.status === 'Invoiced' || activeQuote?.status === 'Paid';
+
   const fulfillmentPlan = generateOptimalFulfillment(
     activeQuote?.id || 'Q-1042',
     activeQuote?.lines || [],
@@ -40,29 +38,31 @@ export const FulfillmentView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Multi-Warehouse Fulfillment Intelligence
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Multi-Warehouse Fulfillment Operations
+            </h1>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
               Automated Freight Splitter
             </span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Optimizes order allocation across Gujarat and Mumbai hubs to minimize split shipments and eliminate backorder latency.
+          </div>
+          <p className="text-xs text-slate-500 font-medium mt-1">
+            Optimizes order stock allocation across Gujarat and Mumbai hubs to minimize split shipments and freight cost.
           </p>
         </div>
 
         {/* Selected Quote Indicator */}
-        <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-          <span className="text-xs text-slate-400">Inspecting Deal:</span>
+        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
+          <span className="text-xs text-slate-600 font-semibold">Fulfill Quote:</span>
           <select
             value={activeQuote?.id}
             onChange={(e) => setSelectedQuoteId(e.target.value)}
-            className="bg-transparent text-xs font-mono font-bold text-cyan-400 outline-none cursor-pointer"
+            className="bg-transparent text-xs font-mono font-bold text-blue-700 outline-none cursor-pointer"
           >
             {quotes.map((q) => (
-              <option key={q.id} value={q.id} className="bg-slate-900 text-white">
+              <option key={q.id} value={q.id}>
                 {q.id} — {q.companyName} ({q.status})
               </option>
             ))}
@@ -71,15 +71,15 @@ export const FulfillmentView: React.FC = () => {
       </div>
 
       {/* Warehouse Inventory Stock Level Matrix */}
-      <div className="surface-card p-5">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+      <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
           <div className="flex items-center gap-2">
-            <Boxes className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            <Boxes className="w-4 h-4 text-blue-600" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Live Network Warehouse Inventory (On-Hand & Reserved)
             </span>
           </div>
-          <span className="text-[11px] font-mono text-slate-400">
+          <span className="text-[11px] font-mono text-slate-500 font-medium">
             3 Logistics Hubs Synchronized
           </span>
         </div>
@@ -92,31 +92,31 @@ export const FulfillmentView: React.FC = () => {
             return (
               <div
                 key={wh.id}
-                className="p-4 rounded-lg bg-slate-900/80 border border-slate-800 space-y-3"
+                className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3"
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Building className="w-3.5 h-3.5 text-cyan-400" /> {wh.name}
+                    <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Building className="w-4 h-4 text-blue-600" /> {wh.name}
                     </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">{wh.location}</p>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">{wh.location}</p>
                   </div>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200">
-                    {totalUnits} Units Total
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800">
+                    {totalUnits} Units
                   </span>
                 </div>
 
-                <div className="space-y-1.5 pt-2 border-t border-slate-800/80 text-xs font-mono">
+                <div className="space-y-1.5 pt-2 border-t border-slate-200 text-xs font-mono">
                   {whStock.map((item) => {
                     const prod = products.find((p) => p.id === item.productId);
                     return (
-                      <div key={item.id} className="flex justify-between text-slate-300">
-                        <span className="font-sans text-[11px] text-slate-400 truncate max-w-[160px]">
+                      <div key={item.id} className="flex justify-between text-slate-700">
+                        <span className="font-sans text-[11px] text-slate-600 font-medium truncate max-w-[160px]">
                           {prod?.name || item.productId}
                         </span>
                         <span className="font-bold">
                           {item.quantityOnHand} on hand{' '}
-                          <span className="text-slate-500 font-normal">
+                          <span className="text-slate-400 font-normal">
                             ({item.quantityReserved} res)
                           </span>
                         </span>
@@ -125,7 +125,7 @@ export const FulfillmentView: React.FC = () => {
                   })}
                 </div>
 
-                <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400 flex justify-between font-mono">
+                <div className="pt-2 border-t border-slate-200 text-[11px] text-slate-500 font-medium flex justify-between font-mono">
                   <span>Base Freight: ₹{wh.shippingCostBase}</span>
                   <span>Rate: ₹{wh.weightMultiplier}/unit</span>
                 </div>
@@ -139,15 +139,15 @@ export const FulfillmentView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Allocation Matrix */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="surface-card p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 block">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-800 block">
                   Optimal Warehouse Split Recommendation for {activeQuote?.id}
                 </span>
-                <span className="text-[11px] text-slate-400">
-                  Customer: <span className="text-white">{activeQuote?.companyName}</span> • Terms:{' '}
-                  {activeQuote?.tier}
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Customer: <span className="text-slate-900 font-bold">{activeQuote?.companyName}</span> • Terms:{' '}
+                  {activeQuote?.tier} Tier
                 </span>
               </div>
               <StatusBadge status={activeQuote?.status || 'Draft'} />
@@ -157,36 +157,36 @@ export const FulfillmentView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-500 font-sans">
-                    <th className="pb-2">Product Item</th>
-                    <th className="pb-2">Allocated Warehouse</th>
-                    <th className="pb-2 text-center">Allocated Qty</th>
-                    <th className="pb-2">Estimated Freight</th>
-                    <th className="pb-2">Status</th>
+                  <tr className="border-b border-slate-200 text-slate-500 font-sans font-semibold bg-slate-50">
+                    <th className="p-2.5">Product Item</th>
+                    <th className="p-2.5">Allocated Warehouse</th>
+                    <th className="p-2.5 text-center">Allocated Qty</th>
+                    <th className="p-2.5">Estimated Freight</th>
+                    <th className="p-2.5">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-slate-200 font-medium">
                   {fulfillmentPlan.allocations.map((alloc) => (
                     <tr key={alloc.id} className="py-3">
-                      <td className="py-3 font-sans text-white font-medium">
+                      <td className="p-2.5 font-sans text-slate-900 font-bold">
                         {alloc.productName}
                       </td>
-                      <td className="py-3 text-cyan-300 font-sans">
+                      <td className="p-2.5 text-blue-700 font-sans font-bold">
                         {alloc.warehouseName}
                       </td>
-                      <td className="py-3 text-center font-bold text-white text-sm">
+                      <td className="p-2.5 text-center font-bold text-slate-900 text-sm">
                         {alloc.allocatedQty} units
                       </td>
-                      <td className="py-3 text-slate-300">
+                      <td className="p-2.5 text-slate-700">
                         ₹{alloc.estimatedFreight.toLocaleString('en-IN')}
                       </td>
-                      <td className="py-3 font-sans">
+                      <td className="p-2.5 font-sans">
                         {alloc.isBackorder ? (
-                          <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+                          <span className="text-[11px] font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
                             Backorder Pending
                           </span>
                         ) : (
-                          <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                             Available in Depot
                           </span>
                         )}
@@ -198,32 +198,54 @@ export const FulfillmentView: React.FC = () => {
             </div>
 
             {/* Explanation Note */}
-            <div className="p-3 rounded bg-blue-950/20 border border-blue-800/40 text-xs text-blue-200 flex items-start gap-2">
-              <Truck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-md bg-blue-50 border border-blue-200 text-xs text-blue-900 font-medium flex items-start gap-2">
+              <Truck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <span>{fulfillmentPlan.explanation}</span>
             </div>
 
             {/* Actions */}
-            <div className="pt-2 flex items-center justify-between">
-              <div className="text-xs text-slate-400">
-                Total Freight Cost:{' '}
-                <span className="font-mono font-bold text-white">
+            <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="text-xs text-slate-600 font-semibold">
+                Total Estimated Freight:{' '}
+                <span className="font-mono font-bold text-slate-900 text-sm">
                   ₹{fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (activeQuote) {
-                      acceptFulfillment(activeQuote.id);
-                      alert('Optimal split accepted! Hybrid invoice generated and order marked Invoiced.');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-md text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/10"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> [Accept Optimal Allocation]
-                </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {isAlreadyInvoiced ? (
+                  <>
+                    <button
+                      disabled
+                      title={`Invoice ${existingInvoice?.id || ''} has already been generated for Order ${activeQuote?.id}.`}
+                      className="px-4 py-2 rounded-md text-xs font-bold bg-slate-200 text-slate-500 border border-slate-300 transition flex items-center gap-1.5 cursor-not-allowed"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> ✓ Invoice Generated ({existingInvoice?.id || 'Invoiced'})
+                    </button>
+                    <button
+                      onClick={() => setActiveView('invoices')}
+                      className="px-4 py-2 rounded-md text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs font-sans"
+                    >
+                      View Invoices &rarr;
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (activeQuote) {
+                        const res = acceptFulfillment(activeQuote.id);
+                        if (res?.isNew) {
+                          alert(`Invoice ${res.invoiceId} generated successfully for Order ${activeQuote.id}! Redirecting to Invoices Page.`);
+                        } else if (res?.invoiceId) {
+                          alert(`Invoice ${res.invoiceId} was already generated for Order ${activeQuote.id}. Redirecting to Invoices Page.`);
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Accept Optimal Split & Generate Invoice
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -231,31 +253,31 @@ export const FulfillmentView: React.FC = () => {
 
         {/* Right 1 Col: Live Shipment Optimization Highlights */}
         <div className="space-y-4">
-          <div className="surface-card p-5 space-y-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block pb-2 border-b border-slate-800">
-              Shipment Metrics
+          <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block pb-2 border-b border-slate-200">
+              Fulfillment & Freight Summary
             </span>
 
             <div className="space-y-2.5 text-xs font-mono">
               <div className="flex justify-between">
-                <span className="text-slate-400">Total Shipments:</span>
-                <span className="text-white font-bold">{fulfillmentPlan.totalShipments} Dispatches</span>
+                <span className="text-slate-600 font-medium">Total Shipments:</span>
+                <span className="text-slate-900 font-bold">{fulfillmentPlan.totalShipments} Dispatches</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Estimated Freight:</span>
-                <span className="text-cyan-400 font-bold">
+                <span className="text-slate-600 font-medium">Estimated Freight:</span>
+                <span className="text-blue-700 font-bold">
                   ₹{fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Delivery SLA:</span>
-                <span className="text-emerald-400 font-bold">48 Hours (Guaranteed)</span>
+                <span className="text-slate-600 font-medium">Delivery SLA Commitment:</span>
+                <span className="text-emerald-700 font-bold">48 Hours SLA</span>
               </div>
             </div>
 
             {fulfillmentPlan.hasBackorder && (
-              <div className="p-3 rounded bg-amber-950/30 border border-amber-500/40 text-xs text-amber-300 space-y-1 mt-3">
-                <span className="font-bold block">Backorder Alert:</span>
+              <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1 mt-3 font-medium">
+                <span className="font-bold block text-amber-950">Backorder Queue Active:</span>
                 <p>
                   {fulfillmentPlan.backorderQuantity} units queued for auto-consolidation upon vendor replenishment arrival.
                 </p>
@@ -267,3 +289,4 @@ export const FulfillmentView: React.FC = () => {
     </div>
   );
 };
+

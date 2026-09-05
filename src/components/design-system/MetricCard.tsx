@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
 interface MetricCardProps {
@@ -22,38 +22,38 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   variant = 'default',
   onClick,
 }) => {
-  const variantStyles = {
-    default: 'text-slate-400 group-hover:text-slate-200',
-    cyan: 'text-cyan-400 group-hover:text-cyan-300',
-    emerald: 'text-emerald-400 group-hover:text-emerald-300',
-    amber: 'text-amber-400 group-hover:text-amber-300',
-    crimson: 'text-rose-400 group-hover:text-rose-300',
+  const iconContainerStyles = {
+    default: 'bg-slate-100 text-slate-600 border-slate-200',
+    cyan: 'bg-blue-50 text-blue-600 border-blue-200',
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    amber: 'bg-amber-50 text-amber-600 border-amber-200',
+    crimson: 'bg-rose-50 text-rose-600 border-rose-200',
   };
 
   return (
     <div
       onClick={onClick}
-      className={`group surface-card p-5 surface-interactive relative overflow-hidden ${
+      className={`group bg-white rounded-lg border border-slate-200 p-5 shadow-xs transition hover:shadow-md hover:border-slate-300 relative overflow-hidden ${
         onClick ? 'cursor-pointer' : ''
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           {title}
         </span>
-        <div className={`p-2 rounded-lg bg-slate-900/80 border border-slate-800 ${variantStyles[variant]}`}>
+        <div className={`p-2.5 rounded-lg border ${iconContainerStyles[variant]}`}>
           <Icon className="w-4 h-4" />
         </div>
       </div>
 
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tracking-tight text-white">{value}</span>
+        <span className="text-2xl font-bold tracking-tight text-slate-900">{value}</span>
         {delta && (
           <span
-            className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+            className={`text-xs font-medium px-2 py-0.5 rounded-md ${
               isPositive
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
             }`}
           >
             {delta}
@@ -61,7 +61,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
         )}
       </div>
 
-      {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
+      {subtitle && <p className="mt-1 text-xs text-slate-500 font-medium">{subtitle}</p>}
     </div>
   );
 };
+

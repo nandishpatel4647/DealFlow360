@@ -8,49 +8,94 @@ interface StatusBadgeProps {
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const styles: Record<QuoteStatus, { bg: string; text: string; border: string }> = {
     Draft: {
-      bg: 'bg-slate-800/60',
-      text: 'text-slate-300',
-      border: 'border-slate-700',
+      bg: 'bg-slate-100',
+      text: 'text-slate-700',
+      border: 'border-slate-300',
     },
     'Pending Manager': {
-      bg: 'bg-amber-500/10',
-      text: 'text-amber-400',
-      border: 'border-amber-500/30',
+      bg: 'bg-amber-50',
+      text: 'text-amber-800',
+      border: 'border-amber-200',
+    },
+    'Manager Approved': {
+      bg: 'bg-[#EAF5FE]',
+      text: 'text-[#0176D3]',
+      border: 'border-blue-200',
+    },
+    'Pending Customer': {
+      bg: 'bg-indigo-50',
+      text: 'text-indigo-800',
+      border: 'border-indigo-200',
+    },
+    'Customer Revision Requested': {
+      bg: 'bg-orange-50',
+      text: 'text-orange-800',
+      border: 'border-orange-200',
+    },
+    'Customer Approved': {
+      bg: 'bg-teal-50',
+      text: 'text-teal-800',
+      border: 'border-teal-200',
     },
     'Pending Finance': {
-      bg: 'bg-purple-500/10',
-      text: 'text-purple-400',
-      border: 'border-purple-500/30',
+      bg: 'bg-purple-50',
+      text: 'text-purple-800',
+      border: 'border-purple-200',
+    },
+    'Finance Approved': {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
     },
     'Fully Approved': {
-      bg: 'bg-emerald-500/10',
-      text: 'text-emerald-400',
-      border: 'border-emerald-500/30',
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
     },
     'Under Negotiation': {
-      bg: 'bg-cyan-500/10',
-      text: 'text-cyan-400',
-      border: 'border-cyan-500/30',
+      bg: 'bg-blue-50',
+      text: 'text-blue-800',
+      border: 'border-blue-200',
+    },
+    Confirmed: {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
     },
     Fulfillment: {
-      bg: 'bg-blue-500/10',
-      text: 'text-blue-400',
-      border: 'border-blue-500/30',
+      bg: 'bg-indigo-50',
+      text: 'text-indigo-800',
+      border: 'border-indigo-200',
     },
     Invoiced: {
-      bg: 'bg-indigo-500/10',
-      text: 'text-indigo-400',
-      border: 'border-indigo-500/30',
+      bg: 'bg-sky-50',
+      text: 'text-sky-800',
+      border: 'border-sky-200',
     },
     Paid: {
-      bg: 'bg-teal-500/10',
-      text: 'text-teal-400',
-      border: 'border-teal-500/30',
+      bg: 'bg-teal-50',
+      text: 'text-teal-800',
+      border: 'border-teal-200',
+    },
+    'Returned for Revision': {
+      bg: 'bg-[#FFF4E5]',
+      text: 'text-[#B76E00]',
+      border: 'border-[#FFD599]',
     },
     Rejected: {
-      bg: 'bg-rose-500/10',
-      text: 'text-rose-400',
-      border: 'border-rose-500/30',
+      bg: 'bg-rose-50',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
+    },
+    'Rejected by Sales Manager': {
+      bg: 'bg-rose-50',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
+    },
+    'Rejected by Finance': {
+      bg: 'bg-rose-50',
+      text: 'text-rose-800',
+      border: 'border-rose-200',
     },
   };
 
@@ -58,9 +103,10 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
 
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${current.bg} ${current.text} ${current.border}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${current.bg} ${current.text} ${current.border}`}
     >
       {status}
     </span>
   );
 };
+

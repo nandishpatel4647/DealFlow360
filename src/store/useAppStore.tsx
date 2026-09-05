@@ -12,7 +12,7 @@ import {
   DealAnomaly,
   AuditLog,
   ConfigPolicy,
-  WarehouseAllocation,
+  ChatMessage,
 } from '../types';
 import {
   SEED_COMPANIES,
@@ -30,10 +30,24 @@ import { scanDealAnomalies } from '../logic/dealHealthEngine';
 import { generateOptimalFulfillment } from '../logic/fulfillmentEngine';
 import { generateHybridBilling } from '../logic/billingEngine';
 import { calculateDealCloseConfidence } from '../logic/aiEngine';
+import { DemoUser, DEMO_USERS } from '../auth/demoUsers';
+
+export interface AuthUser {
+  email: string;
+  name: string;
+  role: UserRole;
+  companyId?: string;
+}
 
 interface AppContextType {
+  isAuthenticated: boolean;
+  currentUser: AuthUser | null;
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
+  login: (email: string, password: string, role?: UserRole) => void;
+  loginAsCustomer: (token: string) => void;
+  logout: () => void;
+
   activeView: string;
   setActiveView: (view: string) => void;
   selectedQuoteId: string | null;
@@ -42,6 +56,7 @@ interface AppContextType {
   setCustomerPortalToken: (token: string | null) => void;
 
   // Data
+  users: DemoUser[];
   companies: Company[];
   products: Product[];
   warehouses: Warehouse[];
@@ -52,17 +67,26 @@ interface AppContextType {
   anomalies: DealAnomaly[];
   auditLogs: AuditLog[];
   configPolicy: ConfigPolicy;
+  messages: ChatMessage[];
   activeQuote: Quote | null;
 
   // Operations
+  addUser: (user: DemoUser) => void;
+  addCompany: (company: Company) => void;
+  addProduct: (product: Product) => void;
+  updateProduct: (product: Product) => void;
+  sendMessage: (quoteId: string, text: string, sender: 'customer' | 'rep' | 'manager' | 'system', senderName: string) => void;
   createNewQuote: (companyId: string) => string;
   updateQuoteLine: (quoteId: string, lineId: string, quantity: number, discountPercent: number) => void;
   addLineToQuote: (quoteId: string, productId: string, quantity?: number, discountPercent?: number) => void;
   removeLineFromQuote: (quoteId: string, lineId: string) => void;
   submitForApproval: (quoteId: string) => void;
+  sendToCustomer: (quoteId: string) => void;
+  sendRevisedQuoteToCustomer: (quoteId: string) => void;
   managerApprove: (quoteId: string, comments?: string) => void;
   financeApprove: (quoteId: string, comments?: string) => void;
   returnForRevision: (quoteId: string, comments: string) => void;
+  rejectQuote: (quoteId: string, comments: string, rejectorRole?: 'sales_manager' | 'finance') => void;
   customerCounterOffer: (
     quoteId: string,
     notes: string,
@@ -70,7 +94,7 @@ interface AppContextType {
     requestedDelivery?: string
   ) => void;
   customerAcceptQuote: (quoteId: string) => void;
-  acceptFulfillment: (quoteId: string) => void;
+  acceptFulfillment: (quoteId: string) => { invoiceId: string; isNew: boolean } | null;
   recordPayment: (invoiceId: string) => void;
   resolveAnomaly: (anomalyId: string, actionTaken: string) => void;
   updatePolicy: (updates: Partial<ConfigPolicy>) => void;
@@ -80,24 +104,202 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [userRole, setUserRole] = useState<UserRole>('sales_rep');
-  const [activeView, setActiveView] = useState<string>('dashboard');
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>('Q-1042');
-  const [customerPortalToken, setCustomerPortalToken] = useState<string | null>('token_acme');
+const LOCAL_STORAGE_KEY = 'dealflow360_app_state_v2';
+const AUTH_STORAGE_KEY = 'dealflow360_auth_v2';
 
-  const [companies, setCompanies] = useState<Company[]>(SEED_COMPANIES);
-  const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>(SEED_WAREHOUSES);
-  const [inventory, setInventory] = useState<WarehouseInventory[]>(SEED_INVENTORY);
-  const [quotes, setQuotes] = useState<Quote[]>(SEED_QUOTES);
-  const [invoices, setInvoices] = useState<Invoice[]>(SEED_INVOICES);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(SEED_SUBSCRIPTIONS);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(SEED_AUDIT_LOGS);
-  const [configPolicy, setConfigPolicy] = useState<ConfigPolicy>(DEFAULT_CONFIG_POLICY);
-  const [anomalies, setAnomalies] = useState<DealAnomaly[]>(() => scanDealAnomalies(SEED_QUOTES));
+const INITIAL_SEED_MESSAGES: ChatMessage[] = [
+  {
+    id: 'msg-1',
+    quoteId: 'Q-1042',
+    sender: 'rep',
+    senderName: 'P. Mehta (Sales Rep)',
+    text: 'Hello Acme Procurement! We have generated quotation Q-1042 with standard commercial terms. Please review the deliverables.',
+    timestamp: '10:15 AM',
+  },
+  {
+    id: 'msg-2',
+    quoteId: 'Q-1042',
+    sender: 'customer',
+    senderName: 'Acme Procurement',
+    text: 'Thanks P. Mehta. We are reviewing the Installation & Setup line item discounts and requested delivery date.',
+    timestamp: '11:30 AM',
+  },
+  {
+    id: 'msg-3',
+    quoteId: 'Q-1040',
+    sender: 'customer',
+    senderName: 'Vertex Labs Procurement',
+    text: 'Can we reduce the consulting fee by 15% for long term engagement?',
+    timestamp: '02:15 PM',
+  },
+];
+
+export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Initialize Auth State from LocalStorage
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    return savedAuth ? JSON.parse(savedAuth).isAuthenticated : false;
+  });
+
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    return savedAuth ? JSON.parse(savedAuth).currentUser : null;
+  });
+
+  const [userRole, setUserRoleState] = useState<UserRole>(() => {
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    return savedAuth ? JSON.parse(savedAuth).userRole : 'sales_rep';
+  });
+
+  const setUserRole = (role: UserRole) => {
+    setUserRoleState(role);
+    if (currentUser) {
+      const updatedUser = { ...currentUser, role };
+      setCurrentUser(updatedUser);
+      localStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({ isAuthenticated, currentUser: updatedUser, userRole: role })
+      );
+    }
+  };
+
+  const login = (email: string, _password: string, role?: UserRole) => {
+    const assignedRole = role || 'sales_rep';
+    const nameMap: Record<UserRole, string> = {
+      sales_rep: 'P. Mehta (Sales Rep)',
+      sales_manager: 'M. Shah (Sales Manager)',
+      finance: 'R. Iyer (Finance & Ops)',
+      customer: 'Customer Portal (Acme)',
+      admin: 'System Administrator',
+    };
+
+    const user: AuthUser = {
+      email,
+      name: nameMap[assignedRole] || email.split('@')[0],
+      role: assignedRole,
+    };
+
+    setIsAuthenticated(true);
+    setCurrentUser(user);
+    setUserRoleState(assignedRole);
+    setActiveView(assignedRole === 'customer' ? 'portal' : 'dashboard');
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated: true, currentUser: user, userRole: assignedRole })
+    );
+  };
+
+  const loginAsCustomer = (token: string) => {
+    const company = SEED_COMPANIES.find((c) => c.portalToken === token) || SEED_COMPANIES[0];
+    const user: AuthUser = {
+      email: company.contactEmail,
+      name: `${company.name} Procurement`,
+      role: 'customer',
+      companyId: company.id,
+    };
+
+    setIsAuthenticated(true);
+    setCurrentUser(user);
+    setUserRoleState('customer');
+    setCustomerPortalToken(token);
+    setActiveView('portal');
+
+    localStorage.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({ isAuthenticated: true, currentUser: user, userRole: 'customer' })
+    );
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  // State Persistence Initialization
+  const loadSavedData = () => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse saved state:', e);
+      }
+    }
+    return null;
+  };
+
+  const initialSaved = loadSavedData();
+
+  const [activeView, setActiveView] = useState<string>('dashboard');
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(
+    initialSaved?.selectedQuoteId || 'Q-1042'
+  );
+  const [customerPortalToken, setCustomerPortalToken] = useState<string | null>(
+    initialSaved?.customerPortalToken || 'token_acme'
+  );
+
+  const [users, setUsers] = useState<DemoUser[]>(initialSaved?.users || DEMO_USERS);
+  const [companies, setCompanies] = useState<Company[]>(initialSaved?.companies || SEED_COMPANIES);
+  const [products, setProducts] = useState<Product[]>(initialSaved?.products || SEED_PRODUCTS);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>(initialSaved?.warehouses || SEED_WAREHOUSES);
+  const [inventory, setInventory] = useState<WarehouseInventory[]>(initialSaved?.inventory || SEED_INVENTORY);
+  const [quotes, setQuotes] = useState<Quote[]>(initialSaved?.quotes || SEED_QUOTES);
+  const [invoices, setInvoices] = useState<Invoice[]>(initialSaved?.invoices || SEED_INVOICES);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(
+    initialSaved?.subscriptions || SEED_SUBSCRIPTIONS
+  );
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(initialSaved?.auditLogs || SEED_AUDIT_LOGS);
+  const [configPolicy, setConfigPolicy] = useState<ConfigPolicy>(
+    initialSaved?.configPolicy || DEFAULT_CONFIG_POLICY
+  );
+  const [anomalies, setAnomalies] = useState<DealAnomaly[]>(
+    () => initialSaved?.anomalies || scanDealAnomalies(SEED_QUOTES)
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    initialSaved?.messages || INITIAL_SEED_MESSAGES
+  );
 
   const activeQuote = quotes.find((q) => q.id === selectedQuoteId) || quotes[0] || null;
+
+  // Persist State to LocalStorage on modifications
+  useEffect(() => {
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY,
+      JSON.stringify({
+        selectedQuoteId,
+        customerPortalToken,
+        users,
+        companies,
+        products,
+        warehouses,
+        inventory,
+        quotes,
+        invoices,
+        subscriptions,
+        auditLogs,
+        configPolicy,
+        anomalies,
+        messages,
+      })
+    );
+  }, [
+    selectedQuoteId,
+    customerPortalToken,
+    users,
+    companies,
+    products,
+    warehouses,
+    inventory,
+    quotes,
+    invoices,
+    subscriptions,
+    auditLogs,
+    configPolicy,
+    anomalies,
+    messages,
+  ]);
 
   // Realtime Broadcast Channel for cross-tab customer portal sync
   useEffect(() => {
@@ -109,6 +311,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setQuotes((prev) =>
               prev.map((q) => (q.id === payload.quote.id ? payload.quote : q))
             );
+          } else if (payload.type === 'NEW_MESSAGE') {
+            setMessages((prev) => [...prev, payload.message]);
           }
         } catch (err) {
           console.error(err);
@@ -126,9 +330,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
+  const sendMessage = (
+    quoteId: string,
+    text: string,
+    sender: 'customer' | 'rep' | 'manager' | 'system',
+    senderName: string
+  ) => {
+    const newMsg: ChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      quoteId,
+      sender,
+      senderName,
+      text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+    broadcastSync('NEW_MESSAGE', { message: newMsg });
+    addCustomAuditLog(quoteId, senderName, `Sent Chat Message: "${text.slice(0, 40)}..."`);
+  };
+
   const addCustomAuditLog = (quoteId: string, actor: string, action: string, details?: any) => {
     const newLog: AuditLog = {
-      id: `audit-${Date.now()}`,
+      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       quoteId,
       actor,
       action,
@@ -136,6 +360,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       createdAt: new Date().toISOString(),
     };
     setAuditLogs((prev) => [newLog, ...prev]);
+  };
+
+  const addUser = (newUser: DemoUser) => {
+    setUsers((prev) => [newUser, ...prev]);
+  };
+
+  const addCompany = (newCompany: Company) => {
+    setCompanies((prev) => [newCompany, ...prev]);
+  };
+
+  const addProduct = (newProduct: Product) => {
+    setProducts((prev) => [newProduct, ...prev]);
+    // Optionally initialize inventory across warehouses
+    setInventory((prev) => [
+      ...prev,
+      {
+        id: `inv-${Date.now()}-w1`,
+        warehouseId: warehouses[0]?.id || 'wh-west',
+        productId: newProduct.id,
+        quantityOnHand: newProduct.quantityOnHand ?? 150,
+        quantityReserved: 0,
+      },
+    ]);
+  };
+
+  const updateProduct = (updatedProduct: Product) => {
+    setProducts((prev) => prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
   };
 
   // Re-evaluate a quote's pricing, risk, and confidence
@@ -182,7 +433,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       companyId: company.id,
       companyName: company.name,
       tier: company.tierId,
-      salesRep: 'P. Mehta',
+      salesRep: currentUser?.name || 'P. Mehta',
       status: 'Draft',
       blendedRiskScore: 0,
       riskLevel: 'LOW',
@@ -209,7 +460,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setQuotes((prev) => [newQuote, ...prev]);
     setSelectedQuoteId(newId);
     setActiveView('builder');
-    addCustomAuditLog(newId, 'Sales Rep (P. Mehta)', 'Draft Quote Created', { company: company.name });
+    addCustomAuditLog(newId, currentUser?.name || 'Sales Rep (P. Mehta)', 'Draft Quote Created', { company: company.name });
     return newId;
   };
 
@@ -290,7 +541,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
 
         const updatedQuote = recomputeQuote({ ...q, lines: [...q.lines, newLine] });
-        addCustomAuditLog(quoteId, 'Sales Rep (P. Mehta)', `Added ${product.name}`, {
+        addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', `Added ${product.name}`, {
           qty: quantity,
           discount: `${discountPercent}%`,
           net: `₹${metrics.netAmount.toLocaleString('en-IN')}`,
@@ -309,7 +560,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const updatedLines = q.lines.filter((l) => l.id !== lineId);
         const updatedQuote = recomputeQuote({ ...q, lines: updatedLines });
         if (targetLine) {
-          addCustomAuditLog(quoteId, 'Sales Rep (P. Mehta)', `Removed ${targetLine.productName}`);
+          addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', `Removed ${targetLine.productName}`);
         }
         broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
         return updatedQuote;
@@ -325,34 +576,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         let nextStatus: Quote['status'] = 'Draft';
         let stage: Quote['approvalStage'] = 'None';
+        let assignedTo = 'Auto-Approved';
 
-        if (evalResult.riskLevel === 'HIGH') {
+        if (evalResult.riskLevel === 'HIGH' || evalResult.riskLevel === 'MEDIUM') {
           nextStatus = 'Pending Manager';
           stage = 'Sales Manager';
+          assignedTo = 'M. Shah (Sales Manager)';
           addCustomAuditLog(
             quoteId,
-            'System Governance',
-            `HIGH Risk Triggered (Score ${evalResult.blendedScore}) - Routed to Sales Manager (M. Shah)`,
+            currentUser?.name || 'Sales Rep (P. Mehta)',
+            `Submitted for Manager Approval (${evalResult.riskLevel} Risk, Score ${evalResult.blendedScore})`,
             { reasons: evalResult.riskBreakdown.reasons }
           );
-        } else if (evalResult.riskLevel === 'MEDIUM') {
-          nextStatus = 'Pending Manager';
-          stage = 'Sales Manager';
+        } else {
+          nextStatus = 'Manager Approved';
+          stage = 'Fully Approved';
+          assignedTo = 'P. Mehta (Sales Rep)';
           addCustomAuditLog(
             quoteId,
             'System Governance',
-            `MEDIUM Risk Triggered (Score ${evalResult.blendedScore}) - Routed to Sales Manager (M. Shah)`
+            'Compliant Deal Auto-Approved. Ready for Sales Rep to send to customer.'
           );
-        } else {
-          nextStatus = 'Fully Approved';
-          stage = 'Fully Approved';
-          addCustomAuditLog(quoteId, 'System Governance', 'Auto-Approved (Low Risk Deal)');
         }
 
         const updatedQuote: Quote = {
           ...q,
           status: nextStatus,
           approvalStage: stage,
+          approvalAssignedTo: assignedTo,
           blendedRiskScore: evalResult.blendedScore,
           riskLevel: evalResult.riskLevel,
           riskBreakdown: evalResult.riskBreakdown,
@@ -363,35 +614,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
+  const sendToCustomer = (quoteId: string) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', 'Sent Approved Quotation to Customer Portal');
+        const updated: Quote = {
+          ...q,
+          status: 'Pending Customer',
+          approvalStage: 'Customer Review' as any,
+          approvalAssignedTo: 'Customer Portal',
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
+  const sendRevisedQuoteToCustomer = (quoteId: string) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        addCustomAuditLog(quoteId, currentUser?.name || 'Sales Rep (P. Mehta)', 'Sent Revised Quotation to Customer');
+        const updated: Quote = {
+          ...q,
+          status: 'Pending Customer',
+          approvalStage: 'Customer Review' as any,
+          approvalAssignedTo: 'Customer Portal',
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
   // Sales Manager Approval
   const managerApprove = (quoteId: string, comments = 'Commercial terms approved by Sales Manager.') => {
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-
-        // If HIGH risk, must forward to Finance
-        if (q.riskLevel === 'HIGH') {
-          addCustomAuditLog(quoteId, 'Sales Manager (M. Shah)', 'Approved & Forwarded to Finance', {
-            comments,
-            nextStage: 'Finance (R. Iyer)',
-          });
-          const updated: Quote = {
-            ...q,
-            status: 'Pending Finance',
-            approvalStage: 'Finance',
-            approvalAssignedTo: 'R. Iyer (Finance)',
-          };
-          broadcastSync('QUOTE_UPDATED', { quote: updated });
-          return updated;
-        }
-
-        // If MEDIUM risk, Manager approval completes it
-        addCustomAuditLog(quoteId, 'Sales Manager (M. Shah)', 'Approved Quotation', { comments });
+        addCustomAuditLog(quoteId, 'Sales Manager (M. Shah)', 'Approved Quotation Terms', { comments });
         const updated: Quote = {
           ...q,
-          status: 'Fully Approved',
-          approvalStage: 'Fully Approved',
-          approvalAssignedTo: 'Completed',
+          status: 'Manager Approved',
+          approvalStage: 'Sales Manager',
+          approvalAssignedTo: 'P. Mehta (Sales Rep)',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
@@ -404,12 +671,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-        addCustomAuditLog(quoteId, 'Finance (R. Iyer)', 'Approved High-Risk Deal (Final Approval)', {
+        addCustomAuditLog(quoteId, 'Finance (R. Iyer)', 'Approved High-Risk Quotation Terms (Final Approval)', {
           comments,
         });
         const updated: Quote = {
           ...q,
-          status: 'Fully Approved',
+          status: 'Finance Approved',
           approvalStage: 'Fully Approved',
           approvalAssignedTo: 'Completed',
         };
@@ -424,13 +691,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-        addCustomAuditLog(quoteId, userRole === 'finance' ? 'Finance (R. Iyer)' : 'Sales Manager (M. Shah)', 'Returned for Revision', {
+        const actor = userRole === 'finance' ? 'Finance (R. Iyer)' : 'Sales Manager (M. Shah)';
+        addCustomAuditLog(quoteId, actor, 'Returned Quotation for Revision', {
           reason: comments,
         });
         const updated: Quote = {
           ...q,
-          status: 'Draft',
+          status: 'Returned for Revision',
           approvalStage: 'None',
+          approvalAssignedTo: 'P. Mehta (Sales Rep)',
+        };
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
+  // Reject Quote
+  const rejectQuote = (quoteId: string, comments: string, rejectorRole?: 'sales_manager' | 'finance') => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        const isFinance = rejectorRole === 'finance' || userRole === 'finance';
+        const actor = isFinance ? 'Finance (R. Iyer)' : 'Sales Manager (M. Shah)';
+        const statusVal: Quote['status'] = isFinance ? 'Rejected by Finance' : 'Rejected by Sales Manager';
+
+        addCustomAuditLog(quoteId, actor, `Rejected Quotation`, { reason: comments });
+        const updated: Quote = {
+          ...q,
+          status: statusVal,
+          approvalStage: 'None',
+          approvalAssignedTo: 'Closed',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
@@ -476,36 +767,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           customerRequestedDelivery: requestedDelivery,
         });
 
-        // Trigger re-approval flow automatically
-        let nextStatus: Quote['status'] = 'Under Negotiation';
-        let nextStage: Quote['approvalStage'] = 'None';
-
-        if (recomputed.riskLevel === 'HIGH') {
-          nextStatus = 'Under Negotiation';
-          nextStage = 'Sales Manager';
-        } else if (recomputed.riskLevel === 'MEDIUM') {
-          nextStatus = 'Under Negotiation';
-          nextStage = 'Sales Manager';
-        } else {
-          nextStatus = 'Under Negotiation';
-          nextStage = 'Fully Approved';
-        }
-
         const updatedQuote: Quote = {
           ...recomputed,
-          status: nextStatus,
-          approvalStage: nextStage,
+          status: 'Customer Revision Requested',
+          approvalStage: 'None',
+          approvalAssignedTo: 'P. Mehta (Sales Rep)',
         };
 
         addCustomAuditLog(
           quoteId,
           `Customer (${q.companyName})`,
-          'Counter-Offer Submitted via Portal',
+          'Submitted Revision Request & Counter Terms via Portal',
           {
             notes,
             requestedDelivery,
             newBlendedRisk: recomputed.blendedRiskScore,
-            statusChange: 'Re-routed for Approval Governance',
           }
         );
 
@@ -520,35 +796,77 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
+
+        let nextStatus: Quote['status'] = 'Customer Approved';
+        let stage: Quote['approvalStage'] = 'None';
+        let assignedTo = 'Finance & Ops';
+
+        if (q.riskLevel === 'HIGH') {
+          nextStatus = 'Pending Finance';
+          stage = 'Finance';
+          assignedTo = 'R. Iyer (Finance)';
+          addCustomAuditLog(
+            quoteId,
+            `Customer (${q.companyName})`,
+            'Accepted Commercial Terms. High-Risk Quotation routed to Finance (R. Iyer) for final approval.'
+          );
+        } else {
+          nextStatus = 'Customer Approved';
+          stage = 'Fully Approved';
+          assignedTo = 'Finance & Ops (Fulfillment)';
+          addCustomAuditLog(
+            quoteId,
+            `Customer (${q.companyName})`,
+            'Accepted Terms & Confirmed Quotation via Portal. Advanced to Fulfillment.'
+          );
+        }
+
         const updated: Quote = {
           ...q,
-          status: 'Fulfillment',
+          status: nextStatus,
+          approvalStage: stage,
+          approvalAssignedTo: assignedTo,
         };
-        addCustomAuditLog(quoteId, `Customer (${q.companyName})`, 'Accepted Terms & Confirmed Quotation via Portal');
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
       })
     );
   };
 
-  // Accept Fulfillment Split & Auto-generate Hybrid Invoice
+  // Accept Fulfillment Split & Auto-generate Hybrid Invoice (ONE TIME ONLY PER ORDER)
   const acceptFulfillment = (quoteId: string) => {
+    const existingInvoice = invoices.find((inv) => inv.quoteId === quoteId);
+
+    if (existingInvoice) {
+      addCustomAuditLog(quoteId, 'System Operations', `Invoice ${existingInvoice.id} already exists for quote ${quoteId}.`);
+      setActiveView('invoices');
+      return { invoiceId: existingInvoice.id, isNew: false };
+    }
+
+    const targetQuote = quotes.find((q) => q.id === quoteId);
+    if (!targetQuote) return null;
+
+    const fulfillmentPlan = generateOptimalFulfillment(quoteId, targetQuote.lines, warehouses, inventory);
+    const { invoice, subscriptions: newSubs } = generateHybridBilling(targetQuote);
+
+    setInvoices((invs) => {
+      if (invs.some((i) => i.quoteId === quoteId || i.id === invoice.id)) {
+        return invs;
+      }
+      return [invoice, ...invs];
+    });
+
+    setSubscriptions((subs) => [...newSubs, ...subs]);
+
+    addCustomAuditLog(quoteId, 'Operations Fulfillment Engine', 'Fulfillment Allocation Accepted & Invoice Generated', {
+      shipments: fulfillmentPlan.totalShipments,
+      freightCost: `₹${fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}`,
+      invoiceGenerated: invoice.id,
+    });
+
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-
-        const fulfillmentPlan = generateOptimalFulfillment(quoteId, q.lines, warehouses, inventory);
-        const { invoice, subscriptions: newSubs } = generateHybridBilling(q);
-
-        setInvoices((invs) => [invoice, ...invs]);
-        setSubscriptions((subs) => [...newSubs, ...subs]);
-
-        addCustomAuditLog(quoteId, 'Operations Fulfillment Engine', 'Fulfillment Allocation Accepted', {
-          shipments: fulfillmentPlan.totalShipments,
-          freightCost: `₹${fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}`,
-          invoiceGenerated: invoice.id,
-        });
-
         const updated: Quote = {
           ...q,
           status: 'Invoiced',
@@ -557,6 +875,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return updated;
       })
     );
+
+    setActiveView('invoices');
+    return { invoiceId: invoice.id, isNew: true };
   };
 
   // Record Invoice Payment
@@ -599,13 +920,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updatePolicy = (updates: Partial<ConfigPolicy>) => {
     setConfigPolicy((prev) => {
       const nextPolicy = { ...prev, ...updates };
-      // Recompute active quotes with new policy
       setQuotes((qList) => qList.map((q) => recomputeQuote(q, nextPolicy)));
       return nextPolicy;
     });
   };
 
   const resetToSeedData = () => {
+    setUsers(DEMO_USERS);
     setCompanies(SEED_COMPANIES);
     setProducts(SEED_PRODUCTS);
     setWarehouses(SEED_WAREHOUSES);
@@ -617,19 +938,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAnomalies(scanDealAnomalies(SEED_QUOTES));
     setConfigPolicy(DEFAULT_CONFIG_POLICY);
     setSelectedQuoteId('Q-1042');
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
   };
 
   return (
     <AppContext.Provider
       value={{
+        isAuthenticated,
+        currentUser,
         userRole,
         setUserRole,
+        login,
+        loginAsCustomer,
+        logout,
         activeView,
         setActiveView,
         selectedQuoteId,
         setSelectedQuoteId,
         customerPortalToken,
         setCustomerPortalToken,
+        users,
         companies,
         products,
         warehouses,
@@ -640,15 +968,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         anomalies,
         auditLogs,
         configPolicy,
+        messages,
         activeQuote,
+        addUser,
+        addCompany,
+        addProduct,
+        updateProduct,
+        sendMessage,
         createNewQuote,
         updateQuoteLine,
         addLineToQuote,
         removeLineFromQuote,
         submitForApproval,
+        sendToCustomer,
+        sendRevisedQuoteToCustomer,
         managerApprove,
         financeApprove,
         returnForRevision,
+        rejectQuote,
         customerCounterOffer,
         customerAcceptQuote,
         acceptFulfillment,
@@ -671,3 +1008,4 @@ export const useAppStore = () => {
   }
   return context;
 };
+

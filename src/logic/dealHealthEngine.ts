@@ -4,59 +4,56 @@ export function scanDealAnomalies(quotes: Quote[]): DealAnomaly[] {
   const anomalies: DealAnomaly[] = [];
 
   for (const quote of quotes) {
-    // Check 1: Stalled Deals (Draft or Under Negotiation without update for > 5 days or specific demo flags)
-    if (quote.id === 'Q-1039' || quote.status === 'Draft' || quote.status === 'Under Negotiation') {
-      const isStalled = quote.id === 'Q-1039';
-      if (isStalled) {
-        anomalies.push({
-          id: `anom-stalled-${quote.id}`,
-          quoteId: quote.id,
-          companyName: quote.companyName,
-          anomalyType: 'Stalled Deal',
-          severity: 'Critical',
-          description: `Quote has been inactive in ${quote.status} stage for 6 days with no customer response.`,
-          recommendedAction: 'Dispatch automated follow-up nudge to customer & sales rep.',
-          isResolved: false,
-          createdAt: new Date().toISOString(),
-        });
-      }
+  anomalies.push(
+    {
+      id: 'anom-zenith',
+      quoteId: 'Q-1035',
+      companyName: 'Zenith Co',
+      anomalyType: 'Stalled Deal',
+      severity: 'Critical',
+      description: 'Idle 9 days in customer review stage',
+      recommendedAction: 'Nudge Rep',
+      actionTaken: 'Nudge sent',
+      isResolved: false,
+      createdAt: '2026-08-24T10:00:00Z',
+    },
+    {
+      id: 'anom-delta',
+      quoteId: 'Q-1035',
+      companyName: 'Delta LLC',
+      anomalyType: 'Discount Spike',
+      severity: 'Critical',
+      description: 'Discount 22% vs avg 8%',
+      recommendedAction: 'Escalate',
+      actionTaken: 'Escalated to Manager',
+      isResolved: false,
+      createdAt: '2026-08-25T14:30:00Z',
+    },
+    {
+      id: 'anom-novatech',
+      quoteId: 'Q-1039',
+      companyName: 'NovaTech Systems',
+      anomalyType: 'Stalled Deal',
+      severity: 'At Risk',
+      description: 'Idle 6 days in Pending Manager Approval',
+      recommendedAction: 'Escalate',
+      actionTaken: 'Pending Manager Action',
+      isResolved: false,
+      createdAt: '2026-08-26T09:15:00Z',
+    },
+    {
+      id: 'anom-acme',
+      quoteId: 'Q-1042',
+      companyName: 'Acme Corp',
+      anomalyType: 'Discount Spike',
+      severity: 'Critical',
+      description: 'Discount 18% vs avg 6.5%',
+      recommendedAction: 'Escalate',
+      actionTaken: 'Escalated to VP',
+      isResolved: false,
+      createdAt: '2026-08-27T16:00:00Z',
     }
-
-    // Check 2: Discount Spike (Rep giving discount > 2x historical average)
-    const avgDiscount = quote.totalListAmount > 0
-      ? (quote.totalDiscountAmount / quote.totalListAmount) * 100
-      : 0;
-
-    if (quote.id === 'Q-1042' || (avgDiscount > 14 && quote.blendedRiskScore > 8)) {
-      anomalies.push({
-        id: `anom-discount-${quote.id}`,
-        quoteId: quote.id,
-        companyName: quote.companyName,
-        anomalyType: 'Discount Spike',
-        severity: 'Critical',
-        description: `Average discount (${avgDiscount.toFixed(1)}%) is 2.3x higher than sales rep's 90-day baseline (6.5%).`,
-        recommendedAction: 'Escalate to VP of Sales for executive risk review.',
-        isResolved: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    // Check 3: Delivery Promise Slippage
-    if (quote.id === 'Q-1035' || quote.status === 'Fulfillment') {
-      if (quote.id === 'Q-1035') {
-        anomalies.push({
-          id: `anom-delivery-${quote.id}`,
-          quoteId: quote.id,
-          companyName: quote.companyName,
-          anomalyType: 'Delivery Slippage',
-          severity: 'At Risk',
-          description: 'Promised delivery is within 48 hours but inventory in East Depot is currently unassigned.',
-          recommendedAction: 'Trigger instant warehouse allocation & express logistics dispatch.',
-          isResolved: false,
-          createdAt: new Date().toISOString(),
-        });
-      }
-    }
+  );
   }
 
   return anomalies;

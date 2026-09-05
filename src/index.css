@@ -2,17 +2,17 @@
 
 @layer base {
   :root {
-    --bg-main: #080b12;
-    --bg-surface: #0f141d;
-    --bg-elevated: #151b26;
-    --bg-elevated-hover: #1c2433;
-    --border-subtle: #202938;
-    --border-highlight: #334155;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
+    --bg-main: #f5f7fa;
+    --bg-surface: #ffffff;
+    --bg-elevated: #f8fafc;
+    --bg-elevated-hover: #f1f5f9;
+    --border-subtle: #e2e8f0;
+    --border-highlight: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
     --text-muted: #64748b;
-    --accent-cyan: #06b6d4;
-    --accent-indigo: #6366f1;
+    --accent-primary: #0176d3;
+    --accent-indigo: #4f46e5;
     --accent-emerald: #10b981;
     --accent-amber: #f59e0b;
     --accent-crimson: #ef4444;
@@ -35,27 +35,28 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #080b12;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #202938;
+  background: #cbd5e1;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #94a3b8;
 }
 
-/* Enterprise Control Room Utilities */
+/* Enterprise Salesforce/Odoo Style Utilities */
 .surface-card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
 }
 
 .surface-elevated {
   background-color: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
 }
 
 .surface-interactive {
@@ -64,6 +65,7 @@
 .surface-interactive:hover {
   background-color: var(--bg-elevated-hover);
   border-color: var(--border-highlight);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
 
 /* Pulse indicator */
@@ -75,3 +77,18 @@
 .pulse-indicator {
   animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Print styles for PDF export */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+

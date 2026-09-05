@@ -30,16 +30,36 @@ export interface ProductCategory {
   targetMargin: number; // e.g. 40, 25, 65
 }
 
+export interface ProductVariant {
+  id?: string;
+  attribute: string;
+  values: string;
+  extraPrice: string;
+}
+
+export interface ProductPricelist {
+  id?: string;
+  tier: string;
+  currency: string;
+  priceRule: string;
+}
+
 export interface Product {
   id: string;
   name: string;
   categoryId: ProductCategoryType;
-  listPrice: number; // In INR (₹)
+  listPrice: number; // In INR (₹) or USD
   costPrice: number;
   isRecurring: boolean;
   billingPeriod?: 'monthly' | 'quarterly' | 'yearly';
   sku: string;
   description: string;
+  unit?: string;
+  taxPercent?: number;
+  status?: 'Active' | 'Archived';
+  quantityOnHand?: number;
+  variants?: ProductVariant[];
+  pricelists?: ProductPricelist[];
   suggestedUpsells?: {
     productId: string;
     reason: string;
@@ -67,13 +87,22 @@ export interface WarehouseInventory {
 export type QuoteStatus =
   | 'Draft'
   | 'Pending Manager'
+  | 'Manager Approved'
+  | 'Pending Customer'
+  | 'Customer Revision Requested'
+  | 'Customer Approved'
   | 'Pending Finance'
+  | 'Finance Approved'
   | 'Fully Approved'
   | 'Under Negotiation'
+  | 'Returned for Revision'
+  | 'Confirmed'
   | 'Fulfillment'
   | 'Invoiced'
   | 'Paid'
-  | 'Rejected';
+  | 'Rejected'
+  | 'Rejected by Sales Manager'
+  | 'Rejected by Finance';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -209,6 +238,7 @@ export interface DealAnomaly {
   severity: AnomalySeverity;
   description: string;
   recommendedAction: string;
+  actionTaken?: string;
   isResolved: boolean;
   createdAt: string;
 }
@@ -231,4 +261,13 @@ export interface ConfigPolicy {
     singleLineOverageMax: number;
   };
   warehouseFreightWeights: Record<string, { base: number; perUnit: number }>;
+}
+
+export interface ChatMessage {
+  id: string;
+  quoteId: string;
+  sender: 'customer' | 'rep' | 'manager' | 'system';
+  senderName: string;
+  text: string;
+  timestamp: string;
 }
