@@ -14,7 +14,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { MetricCard } from '../design-system/MetricCard';
 
 export const BillingView: React.FC = () => {
-  const { invoices, subscriptions, recordPayment } = useAppStore();
+  const { invoices, subscriptions, recordPayment, userRole } = useAppStore();
 
   const [selectedSubProrate, setSelectedSubProrate] = useState<string | null>(null);
   const [prorateMessage, setProrateMessage] = useState<string | null>(null);
@@ -148,12 +148,16 @@ export const BillingView: React.FC = () => {
                   </td>
                   <td className="py-3 px-3 text-right">
                     {inv.status !== 'Paid' ? (
-                      <button
-                        onClick={() => recordPayment(inv.id)}
-                        className="px-3 py-1 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer shadow-xs"
-                      >
-                        Record Payment
-                      </button>
+                      (userRole === 'finance' || userRole === 'admin') ? (
+                        <button
+                          onClick={() => recordPayment(inv.id)}
+                          className="px-3 py-1 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer shadow-xs"
+                        >
+                          Record Payment
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-amber-700 font-medium">Awaiting Finance Settlement</span>
+                      )
                     ) : (
                       <span className="text-[11px] text-slate-400 font-medium">Settled</span>
                     )}

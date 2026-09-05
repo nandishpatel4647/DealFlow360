@@ -20,30 +20,30 @@ export const QuoteKanbanView: React.FC = () => {
   const uniqueReps = Array.from(new Set(quotes.map((q) => q.salesRep)));
 
   const columns: { id: string; title: string; statuses: QuoteStatus[]; color: string }[] = [
-    { id: 'draft', title: 'Draft Deals', statuses: ['Draft', 'Returned for Revision'], color: 'border-t-slate-400' },
+    { id: 'draft', title: '1. Draft Deals', statuses: ['Draft', 'Returned for Revision'], color: 'border-t-slate-400' },
     {
-      id: 'pending',
-      title: 'Pending Approvals',
-      statuses: ['Pending Manager', 'Pending Finance'],
+      id: 'manager',
+      title: '2. Sales Manager Review',
+      statuses: ['Pending Manager'],
       color: 'border-t-amber-500',
     },
     {
-      id: 'negotiation',
-      title: 'Customer Review & Negotiation',
-      statuses: ['Manager Approved', 'Pending Customer', 'Under Negotiation', 'Customer Revision Requested'],
+      id: 'customer',
+      title: '3. Customer Review',
+      statuses: ['Pending Customer', 'Under Negotiation', 'Customer Revision Requested'],
       color: 'border-t-blue-500',
     },
     {
-      id: 'approved',
-      title: 'Customer & Finance Approved',
-      statuses: ['Customer Approved', 'Finance Approved', 'Fully Approved', 'Confirmed'],
-      color: 'border-t-emerald-500',
+      id: 'finance',
+      title: '4. Finance Review',
+      statuses: ['Customer Approved', 'Pending Finance'],
+      color: 'border-t-purple-500',
     },
     {
       id: 'fulfillment',
-      title: 'Fulfillment & Invoiced',
-      statuses: ['Fulfillment', 'Invoiced', 'Paid'],
-      color: 'border-t-indigo-500',
+      title: '5. Fulfillment & Invoice',
+      statuses: ['Finance Approved', 'Fully Approved', 'Confirmed', 'Fulfillment', 'Invoiced', 'Paid'],
+      color: 'border-t-emerald-500',
     },
   ];
 
@@ -55,7 +55,6 @@ export const QuoteKanbanView: React.FC = () => {
       case 'Pending Manager':
         return 'Sales Manager Review';
       case 'Manager Approved':
-        return 'Sales Rep Confirmation';
       case 'Pending Customer':
       case 'Under Negotiation':
         return 'Customer Review';
@@ -94,6 +93,13 @@ export const QuoteKanbanView: React.FC = () => {
     if (repFilter !== 'ALL' && q.salesRep !== repFilter) return false;
 
     if (statusFilter === 'ALL') return true;
+    if (statusFilter === 'STAGE_DRAFT' || statusFilter === 'Draft') return ['Draft', 'Returned for Revision'].includes(q.status);
+    if (statusFilter === 'STAGE_MANAGER' || statusFilter === 'Pending Manager') return q.status === 'Pending Manager';
+    if (statusFilter === 'STAGE_CUSTOMER' || statusFilter === 'Pending Customer') return ['Pending Customer', 'Manager Approved', 'Under Negotiation', 'Customer Revision Requested'].includes(q.status);
+    if (statusFilter === 'STAGE_FINANCE' || statusFilter === 'Pending Finance') return ['Customer Approved', 'Pending Finance'].includes(q.status);
+    if (statusFilter === 'STAGE_FULFILLMENT' || statusFilter === 'Fulfillment') return ['Finance Approved', 'Fully Approved', 'Confirmed', 'Fulfillment'].includes(q.status);
+    if (statusFilter === 'STAGE_INVOICE' || statusFilter === 'Invoiced') return ['Invoiced', 'Paid'].includes(q.status);
+    if (statusFilter === 'STAGE_REJECTED' || statusFilter === 'Rejected') return ['Rejected', 'Rejected by Sales Manager', 'Rejected by Finance'].includes(q.status);
     return q.status === statusFilter;
   });
 
@@ -203,18 +209,13 @@ export const QuoteKanbanView: React.FC = () => {
               className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 font-bold text-slate-900 text-xs outline-none focus:border-[#0176D3]"
             >
               <option value="ALL">All Statuses</option>
-              <option value="Draft">Draft</option>
-              <option value="Pending Manager">Pending Sales Manager</option>
-              <option value="Manager Approved">Manager Approved</option>
-              <option value="Pending Customer">Pending Customer</option>
-              <option value="Customer Revision Requested">Customer Revision Requested</option>
-              <option value="Customer Approved">Customer Approved</option>
-              <option value="Pending Finance">Pending Finance</option>
-              <option value="Finance Approved">Finance Approved</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Confirmed">Confirmed</option>
-              <option value="Fulfillment">Fulfillment</option>
-              <option value="Invoiced">Invoiced</option>
+              <option value="STAGE_DRAFT">1. Quote Draft</option>
+              <option value="STAGE_MANAGER">2. Sales Manager Review</option>
+              <option value="STAGE_CUSTOMER">3. Customer Review</option>
+              <option value="STAGE_FINANCE">4. Finance Review</option>
+              <option value="STAGE_FULFILLMENT">5. Fulfillment</option>
+              <option value="STAGE_INVOICE">6. Invoice</option>
+              <option value="STAGE_REJECTED">Closed / Rejected</option>
             </select>
           </div>
 
@@ -266,7 +267,6 @@ export const QuoteKanbanView: React.FC = () => {
                   <th className="py-3.5 px-4">Discount</th>
                   <th className="py-3.5 px-4">Risk</th>
                   <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">Current Stage</th>
                   <th className="py-3.5 px-4">Last Updated</th>
                   <th className="py-3.5 px-4 text-right">Action</th>
                 </tr>
@@ -300,9 +300,6 @@ export const QuoteKanbanView: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <StatusBadge status={q.status} />
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600 font-medium text-[11px]">
-                        {getStageLabel(q.status)}
-                      </td>
                       <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                         {new Date(q.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </td>
@@ -317,7 +314,7 @@ export const QuoteKanbanView: React.FC = () => {
 
                 {filteredQuotes.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-500 text-xs">
+                    <td colSpan={9} className="py-8 text-center text-slate-500 text-xs">
                       No quotations found matching your search and filter criteria.
                     </td>
                   </tr>

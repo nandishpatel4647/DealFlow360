@@ -15,6 +15,9 @@ import {
   ShieldCheck,
   Sparkles,
   Info,
+  RotateCcw,
+  Plus,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { Invoice } from '../../types';
@@ -27,6 +30,12 @@ export const InvoicesView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isPdfPrintModalOpen, setIsPdfPrintModalOpen] = useState<boolean>(false);
+  const [isCreditNoteModalOpen, setIsCreditNoteModalOpen] = useState<boolean>(false);
+
+  // Credit Note Form State
+  const [creditInvoiceId, setCreditInvoiceId] = useState<string>(invoices[0]?.id || '');
+  const [creditAmount, setCreditAmount] = useState<number>(5000);
+  const [creditReason, setCreditReason] = useState<string>('Commercial discount reconciliation / volume rebate adjustment');
 
   // Derived Summary Counts matching Blueprint Page 12
   const unpaidCount = invoices.filter((i) => i.status !== 'Paid').length + 2; // demo offset for 4 Unpaid
@@ -122,7 +131,7 @@ export const InvoicesView: React.FC = () => {
                 </p>
               </div>
 
-              {/* Blueprint Page 12 Badges: 4 Unpaid, 21 Paid */}
+              {/* Blueprint Page 12 Badges & Finance Actions */}
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 rounded-md text-xs font-extrabold bg-rose-100 text-rose-900 border border-rose-300 flex items-center gap-1.5 shadow-2xs">
                   <Clock className="w-3.5 h-3.5 text-rose-700" /> {unpaidCount} Unpaid
@@ -130,6 +139,26 @@ export const InvoicesView: React.FC = () => {
                 <span className="px-3 py-1 rounded-md text-xs font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" /> {paidCount} Paid
                 </span>
+
+                {(userRole === 'finance' || userRole === 'admin') && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <button
+                      onClick={() => setIsCreditNoteModalOpen(true)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer font-sans"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Issue / Reconcile Credit Note
+                    </button>
+                    <button
+                      onClick={() => {
+                        alert('Reconciled all active recurring subscription lines & prorated items for the current billing cycle.');
+                        addCustomAuditLog('SYSTEM', currentUser?.name || 'Finance (R. Iyer)', 'Reconciled Subscription Billing & Credit Exposure');
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer font-sans"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Reconcile Subscription Billing
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -491,6 +520,93 @@ export const InvoicesView: React.FC = () => {
             </div>
           </div>
         )
+      )}
+
+      {/* Credit Note Modal */}
+      {isCreditNoteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200 font-sans">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-[#0176D3]" /> Issue / Reconcile Credit Note
+              </h3>
+              <button onClick={() => setIsCreditNoteModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const targetInv = invoices.find((i) => i.id === creditInvoiceId);
+                if (!targetInv) return;
+                addCustomAuditLog(
+                  targetInv.quoteId || 'SYSTEM',
+                  currentUser?.name || 'Finance (R. Iyer)',
+                  `Issued Credit Note of ₹${creditAmount.toLocaleString('en-IN')} for Invoice ${creditInvoiceId}`,
+                  { amount: creditAmount, reason: creditReason }
+                );
+                setIsCreditNoteModalOpen(false);
+                alert(`Credit Note of ₹${creditAmount.toLocaleString('en-IN')} issued and reconciled against Invoice ${creditInvoiceId}!`);
+              }}
+              className="space-y-4 text-xs font-medium"
+            >
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Target Invoice *</label>
+                <select
+                  value={creditInvoiceId}
+                  onChange={(e) => setCreditInvoiceId(e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-slate-50 border border-slate-300 text-slate-900 font-bold outline-none focus:border-[#0176D3]"
+                >
+                  {invoices.map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.id} — {inv.companyName} (₹{inv.totalAmount.toLocaleString('en-IN')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Credit Note Amount (₹) *</label>
+                <input
+                  type="number"
+                  required
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded bg-slate-50 border border-slate-300 text-slate-900 font-mono font-bold outline-none focus:border-[#0176D3]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Reconciliation Reason *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={creditReason}
+                  onChange={(e) => setCreditReason(e.target.value)}
+                  placeholder="e.g. Commercial discount reconciliation, delivery penalty adjustment..."
+                  className="w-full p-2.5 rounded bg-slate-50 border border-slate-300 text-slate-900 outline-none focus:border-[#0176D3]"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsCreditNoteModalOpen(false)}
+                  className="px-4 py-2 rounded bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded bg-[#0176D3] text-white font-bold text-xs hover:bg-blue-700 cursor-pointer"
+                >
+                  Issue Credit Note
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

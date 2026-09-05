@@ -135,6 +135,68 @@ export interface RiskBreakdown {
   reasons: string[];
 }
 
+export interface DeliveryAddress {
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
+export interface CustomerRevisionRequestLine {
+  lineId: string;
+  productId: string;
+  productName: string;
+  originalDiscountPercent: number;
+  requestedDiscountPercent: number;
+  unitListPrice: number;
+  comment?: string;
+}
+
+export interface CustomerRevisionRequest {
+  requestedAt: string;
+  message: string;
+  requestedDeliveryDate?: string;
+  lineRequests: CustomerRevisionRequestLine[];
+}
+
+export interface QuoteRevisionVersion {
+  version: number;
+  updatedBy: string;
+  timestamp: string;
+  promisedDeliveryDate?: string;
+  requestedDeliveryDate?: string;
+  discountSummary: string;
+  status: QuoteStatus;
+  notes?: string;
+}
+
+export interface Shipment {
+  id: string; // SHP-1001
+  quoteId: string;
+  warehouseId: string;
+  warehouseName: string;
+  carrier?: string;
+  trackingNumber?: string;
+  status: 'Created' | 'In Transit' | 'Delivered';
+  items: { productId: string; productName: string; quantity: number }[];
+  createdAt: string;
+}
+
+export type FulfillmentStage =
+  | 'Not Ready'
+  | 'Ready for Fulfillment'
+  | 'Warehouse Allocated'
+  | 'Stock Reserved'
+  | 'Shipment Created'
+  | 'Partially Shipped'
+  | 'Shipped'
+  | 'Delivered';
+
 export interface Quote {
   id: string; // Q-1042, etc.
   companyId: string;
@@ -157,7 +219,20 @@ export interface Quote {
   createdAt: string;
   updatedAt: string;
   customerCounterNotes?: string;
-  customerRequestedDelivery?: string;
+  
+  // Delivery & Location Fields
+  promisedDeliveryDate: string; // e.g. '2026-10-15'
+  requestedDeliveryDate?: string; // e.g. '2026-10-20'
+  deliveryAddress: DeliveryAddress;
+  
+  // Customer Revision & History
+  customerRevisionRequest?: CustomerRevisionRequest;
+  revisionHistory: QuoteRevisionVersion[];
+  
+  // Fulfillment Tracking
+  fulfillmentStage?: FulfillmentStage;
+  fulfillmentBlockReason?: string;
+  shipments?: Shipment[];
 }
 
 export interface ApprovalRecord {
