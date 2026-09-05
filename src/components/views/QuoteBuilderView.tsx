@@ -19,6 +19,8 @@ import {
   Clock,
   ArrowRight,
   UserCheck,
+  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { MarginGauge } from '../design-system/MarginGauge';
@@ -88,6 +90,8 @@ export const QuoteBuilderView: React.FC = () => {
     );
   }
 
+  const [recommendationFilter, setRecommendationFilter] = useState<'all' | 'cross-sell' | 'upsell'>('all');
+
   // Strict Role-based Commercial Term Editing Permission
   const canEditQuote =
     (userRole === 'sales_rep' || userRole === 'admin') &&
@@ -96,6 +100,16 @@ export const QuoteBuilderView: React.FC = () => {
       activeQuote.status === 'Customer Revision Requested');
 
   const upsellRecommendations = getUpsellRecommendations(activeQuote.lines, products);
+  const filteredRecommendations = upsellRecommendations.filter((rec) => {
+    if (recommendationFilter === 'all') return true;
+    return rec.type === recommendationFilter;
+  });
+  const crossSellCount = upsellRecommendations.filter((r) => r.type === 'cross-sell').length;
+  const upsellCount = upsellRecommendations.filter((r) => r.type === 'upsell').length;
+  const totalPotentialMarginBoost = upsellRecommendations.reduce(
+    (sum, r) => sum + r.expectedMarginImpact,
+    0
+  );
   const quoteAuditLogs = auditLogs.filter((log) => log.quoteId === activeQuote.id);
 
   const overallDiscountPct = activeQuote.totalListAmount > 0 
@@ -698,6 +712,44 @@ export const QuoteBuilderView: React.FC = () => {
                 </button>
               </div>
             )}
+
+            {/* AI Top Recommendation Pill Bar */}
+            {canEditQuote && upsellRecommendations.length > 0 && (
+              <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 via-indigo-50/70 to-purple-50 border border-blue-200/90 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-[#0176D3] text-white shrink-0 shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </span>
+                  <div>
+                    <span className="text-xs font-black text-slate-900">
+                      AI Suggested {upsellRecommendations[0].type === 'cross-sell' ? 'Cross-Sell' : 'Upsell'}:{' '}
+                      <span className="text-[#0176D3] underline decoration-blue-300">
+                        {upsellRecommendations[0].productName}
+                      </span>
+                    </span>
+                    <span className="text-[11px] text-slate-600 ml-2 font-medium">
+                      ({upsellRecommendations[0].confidenceScore}% Match • +₹{upsellRecommendations[0].expectedMarginImpact.toLocaleString('en-IN')} Margin)
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    addLineToQuote(
+                      activeQuote.id,
+                      upsellRecommendations[0].productId,
+                      1,
+                      upsellRecommendations[0].promoDiscount
+                    );
+                    setSaveSuccessToast(true);
+                    setTimeout(() => setSaveSuccessToast(false), 2500);
+                  }}
+                  className="px-3 py-1 rounded-lg text-xs font-black bg-[#0176D3] hover:bg-blue-700 text-white transition flex items-center gap-1 cursor-pointer shadow-xs btn-3d"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Quick Attach (₹{upsellRecommendations[0].netPrice.toLocaleString('en-IN')})
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Governance Risk Card */}
@@ -829,50 +881,154 @@ export const QuoteBuilderView: React.FC = () => {
           {/* Margin Gauge */}
           <MarginGauge marginPercent={activeQuote.overallMarginPercent} targetMargin={30} />
 
-          {/* Upsell Recommendations */}
-          <div className="bg-white rounded-xl border border-blue-200 p-5 card-3d space-y-3">
-            <div className="flex items-center gap-2 text-[#0176D3] pb-2 border-b border-blue-100">
-              <Sparkles className="w-4 h-4 text-[#0176D3]" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Cross-Sell & Upsell Recommendations
-              </span>
+          {/* AI Cross-Sell & Upsell Recommendations Card */}
+          <div className="bg-white rounded-xl border border-blue-200 p-5 card-3d space-y-4 shadow-sm relative overflow-hidden">
+            {/* Top decorative gradient line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600" />
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[#0176D3]">
+                  <Sparkles className="w-4 h-4 text-purple-600 animate-pulse" />
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-900">
+                    AI Deal Copilot • Recommendations
+                  </span>
+                </div>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                  Dynamic Engine
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium">
+                {activeQuote.lines.length > 0
+                  ? `Analyzing ${activeQuote.lines.length} quote item${activeQuote.lines.length > 1 ? 's' : ''} in real-time for high-margin attachments.`
+                  : 'AI starter suggestions to initiate quotation with high margin health.'}
+              </p>
             </div>
 
-            {upsellRecommendations.length > 0 ? (
+            {/* Filter Tabs & Total Opportunity */}
+            {upsellRecommendations.length > 0 && (
+              <div className="flex items-center justify-between gap-1 pt-1 pb-1 border-b border-slate-100">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setRecommendationFilter('all')}
+                    className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer ${
+                      recommendationFilter === 'all'
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    All ({upsellRecommendations.length})
+                  </button>
+                  <button
+                    onClick={() => setRecommendationFilter('cross-sell')}
+                    className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                      recommendationFilter === 'cross-sell'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <ArrowRight className="w-2.5 h-2.5" /> Cross-Sell ({crossSellCount})
+                  </button>
+                  <button
+                    onClick={() => setRecommendationFilter('upsell')}
+                    className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer flex items-center gap-1 ${
+                      recommendationFilter === 'upsell'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <TrendingUp className="w-2.5 h-2.5" /> Upsell ({upsellCount})
+                  </button>
+                </div>
+
+                {totalPotentialMarginBoost > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    +₹{totalPotentialMarginBoost.toLocaleString('en-IN')} opp.
+                  </span>
+                )}
+              </div>
+            )}
+
+            {filteredRecommendations.length > 0 ? (
               <div className="space-y-3">
-                {upsellRecommendations.slice(0, 2).map((rec) => (
+                {filteredRecommendations.slice(0, 3).map((rec) => (
                   <div
                     key={rec.productId}
-                    className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 card-hover-3d"
+                    className="p-3.5 rounded-xl bg-gradient-to-b from-slate-50 to-white border border-slate-200 hover:border-blue-300 transition-all duration-200 space-y-2.5 card-hover-3d shadow-2xs"
                   >
-                    <div className="flex items-start justify-between">
-                      <span className="text-xs font-bold text-slate-900">
-                        {rec.productName}
-                      </span>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 badge-3d">
-                        +₹{rec.expectedMarginImpact.toLocaleString('en-IN')} Margin
+                    {/* Header Row: Type Badge + Confidence Pill */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {rec.type === 'cross-sell' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1 shadow-2xs">
+                            <ArrowRight className="w-2.5 h-2.5 text-blue-600" /> Cross-Sell
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1 shadow-2xs">
+                            <TrendingUp className="w-2.5 h-2.5 text-purple-600" /> AI Upsell
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                          {rec.badgeTitle}
+                        </span>
+                      </div>
+
+                      <span className="text-[10px] font-bold text-slate-700 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs flex items-center gap-1 shrink-0">
+                        <Zap className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+                        {rec.confidenceScore}% Match
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                    {/* Product Name & Trigger Context */}
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 leading-snug">
+                        {rec.productName}
+                      </h4>
+                      {rec.triggerItemName && (
+                        <p className="text-[10px] text-blue-700 font-semibold mt-0.5 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                          Triggered by: {rec.triggerItemName}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* AI Commercial Reasoning */}
+                    <p className="text-[11px] text-slate-600 font-medium leading-relaxed bg-slate-50/80 p-2 rounded-lg border border-slate-100">
                       {rec.reason}
                     </p>
 
-                    <div className="pt-2 flex items-center justify-between">
-                      <span className="text-[11px] font-mono text-slate-600 font-semibold">
-                        Promo: ₹{rec.netPrice.toLocaleString('en-IN')} ({rec.promoDiscount}% off)
-                      </span>
+                    {/* Financial Metrics & Action Button */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex flex-col">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-xs font-black text-slate-900 font-mono">
+                            ₹{rec.netPrice.toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-[10px] text-slate-400 line-through font-mono">
+                            ₹{rec.listPrice.toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-1 rounded">
+                            {rec.promoDiscount}% OFF
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700 mt-0.5">
+                          +₹{rec.expectedMarginImpact.toLocaleString('en-IN')} Margin ({rec.expectedMarginPercent}%)
+                        </span>
+                      </div>
+
                       {canEditQuote && (
                         <button
-                          onClick={() =>
+                          onClick={() => {
                             addLineToQuote(
                               activeQuote.id,
                               rec.productId,
                               1,
                               rec.promoDiscount
-                            )
-                          }
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white transition flex items-center gap-1 cursor-pointer shadow-xs btn-3d"
+                            );
+                            setSaveSuccessToast(true);
+                            setTimeout(() => setSaveSuccessToast(false), 2500);
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 btn-3d"
                         >
                           <Plus className="w-3.5 h-3.5" /> Add to Quote
                         </button>
@@ -882,9 +1038,17 @@ export const QuoteBuilderView: React.FC = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-500 py-3 text-center">
-                All high-margin cross-sells have been added to this quotation.
-              </p>
+              <div className="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                <p className="text-xs font-bold text-slate-800">
+                  {recommendationFilter === 'all'
+                    ? 'All high-margin cross-sells have been added to this quotation.'
+                    : `No active ${recommendationFilter} recommendations remaining.`}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Quotation basket has maximized commercial attachment.
+                </p>
+              </div>
             )}
           </div>
         </div>

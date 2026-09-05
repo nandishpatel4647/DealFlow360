@@ -1,8 +1,8 @@
 import React from 'react';
 
-interface BrandLogoProps {
+export interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg';
-  theme?: 'light' | 'dark' | 'auto';
+  theme?: 'light' | 'dark';
   showSubtitle?: boolean;
   subtitle?: string;
   className?: string;
@@ -10,16 +10,13 @@ interface BrandLogoProps {
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   size = 'md',
-  theme = 'auto',
+  theme = 'light',
   showSubtitle = true,
   subtitle = 'Salesforce Light Enterprise CPQ',
   className = '',
 }) => {
-  const isDark =
-    theme === 'dark' ||
-    (theme === 'auto' &&
-      typeof document !== 'undefined' &&
-      document.documentElement.classList.contains('dark'));
+  // Only use dark/white text when explicitly requested (e.g. landing page floating dark capsule)
+  const isDark = theme === 'dark';
 
   // Dimension configurations
   const dimensions = {
