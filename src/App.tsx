@@ -42,16 +42,28 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#080B12] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950">
+    <div
+      className="min-h-screen flex flex-col font-sans"
+      style={{
+        backgroundColor: 'var(--bg-base)',
+        color: 'var(--text-primary)',
+      }}
+    >
       <Navbar onOpenAskDealFlow={() => setIsAskModalOpen(true)} />
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6 animate-fade-in">
         {renderCurrentView()}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#202938] py-4 text-center text-xs text-slate-500 font-mono">
-        DealFlow360 Enterprise • Self-Governing CPQ Platform • Built for Odoo National Hackathon
+      <footer
+        className="py-4 text-center text-xs font-medium"
+        style={{
+          borderTop: '1px solid var(--border-default)',
+          color: 'var(--text-muted)',
+        }}
+      >
+        DealFlow360 • Self-Governing B2B Sales Operations Platform
       </footer>
 
       <AskDealFlowModal

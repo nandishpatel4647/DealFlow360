@@ -16,38 +16,36 @@ export const MarginGauge: React.FC<MarginGaugeProps> = ({
   const isWarning = marginPercent >= 25 && marginPercent < 35;
   const isDanger = marginPercent < 25;
 
-  const colorClass = isHealthy
-    ? 'text-emerald-400'
+  const statusColor = isHealthy
+    ? 'var(--success)'
     : isWarning
-    ? 'text-amber-400'
-    : 'text-rose-400';
+    ? 'var(--warning)'
+    : 'var(--danger)';
 
-  const barColor = isHealthy
-    ? 'bg-emerald-500'
+  const statusBg = isHealthy
+    ? 'var(--success-soft)'
     : isWarning
-    ? 'bg-amber-500'
-    : 'bg-rose-500';
+    ? 'var(--warning-soft)'
+    : 'var(--danger-soft)';
 
-  const clampedWidth = Math.min(100, Math.max(0, marginPercent * 2)); // 50% margin fills bar
+  const clampedWidth = Math.min(100, Math.max(0, marginPercent * 2));
 
   return (
     <div className="surface-card p-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-          Live Gross Margin
-        </span>
+        <span className="section-heading">Live Gross Margin</span>
         <div className="flex items-center gap-1.5 text-xs font-medium">
           {isHealthy ? (
-            <span className="flex items-center text-emerald-400 gap-1">
-              <TrendingUp className="w-3.5 h-3.5" /> Healthy Margin
+            <span className="flex items-center gap-1" style={{ color: statusColor }}>
+              <TrendingUp className="w-3.5 h-3.5" /> Healthy
             </span>
           ) : isWarning ? (
-            <span className="flex items-center text-amber-400 gap-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> Moderate Margin
+            <span className="flex items-center gap-1" style={{ color: statusColor }}>
+              <AlertTriangle className="w-3.5 h-3.5" /> Moderate
             </span>
           ) : (
-            <span className="flex items-center text-rose-400 gap-1">
-              <TrendingDown className="w-3.5 h-3.5" /> Margin Erosion
+            <span className="flex items-center gap-1" style={{ color: statusColor }}>
+              <TrendingDown className="w-3.5 h-3.5" /> Erosion
             </span>
           )}
         </div>
@@ -55,27 +53,38 @@ export const MarginGauge: React.FC<MarginGaugeProps> = ({
 
       <div className="mt-3 flex items-baseline justify-between">
         <div className="flex items-baseline gap-1.5">
-          <span className={`text-3xl font-bold font-mono tracking-tight ${colorClass}`}>
+          <span
+            className="text-3xl font-bold font-mono tracking-tight"
+            style={{ color: statusColor }}
+          >
             {marginPercent.toFixed(1)}%
           </span>
-          <span className="text-xs text-slate-400">blended</span>
+          <span className="text-xs text-[var(--text-muted)]">blended</span>
         </div>
-        <span className="text-xs text-slate-400">
-          Target: <span className="text-slate-300 font-medium">{targetMargin}%</span>
+        <span className="text-xs text-[var(--text-tertiary)]">
+          Target: <span className="text-[var(--text-secondary)] font-medium">{targetMargin}%</span>
         </span>
       </div>
 
       {/* Visual Bar */}
-      <div className="mt-3 h-2 w-full bg-slate-800 rounded-full overflow-hidden relative">
-        {/* Target Marker */}
+      <div
+        className="mt-3 h-2 w-full rounded-full overflow-hidden relative"
+        style={{ backgroundColor: 'var(--bg-muted)' }}
+      >
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-slate-400 z-10"
-          style={{ left: `${targetMargin * 2}%` }}
+          className="absolute top-0 bottom-0 w-0.5 z-10"
+          style={{
+            left: `${targetMargin * 2}%`,
+            backgroundColor: 'var(--text-muted)',
+          }}
           title={`Target ${targetMargin}%`}
         />
         <div
-          className={`h-full ${barColor} transition-all duration-300 rounded-full`}
-          style={{ width: `${clampedWidth}%` }}
+          className="h-full rounded-full transition-all duration-500 ease-out"
+          style={{
+            width: `${clampedWidth}%`,
+            backgroundColor: statusColor,
+          }}
         />
       </div>
     </div>

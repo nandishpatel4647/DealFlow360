@@ -3,10 +3,7 @@ import {
   CreditCard,
   CheckCircle2,
   Calendar,
-  Layers,
-  ArrowRight,
   Clock,
-  DollarSign,
   FileCheck,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
@@ -25,173 +22,189 @@ export const BillingView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      {/* Header */}
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5"
+        style={{ borderBottom: '1px solid var(--border-default)' }}
+      >
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Hybrid Billing & Subscription Hub
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-400 border border-purple-800">
-              Proration & Revenue Recognition
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center gap-2.5">
+            Billing & Subscriptions
+            <span
+              className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+              style={{ backgroundColor: 'var(--accent-primary-soft)', color: 'var(--accent-primary)' }}
+            >
+              Revenue Recognition
             </span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Reconciles one-time hardware deliveries upon physical dispatch with automated recurring subscription billing schedules.
+          <p className="text-sm text-[var(--text-tertiary)] mt-1">
+            Reconciles one-time deliveries with recurring subscription billing schedules.
           </p>
         </div>
       </div>
 
-      {/* KPI Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger-children">
         <MetricCard
-          title="Total Invoiced Receivables"
-          value={`₹${(totalInvoiced / 100000).toFixed(2)} Lakh`}
+          title="Total Invoiced"
+          value={`₹${(totalInvoiced / 100000).toFixed(2)}L`}
           subtitle={`${invoices.length} invoices generated`}
           icon={CreditCard}
-          variant="cyan"
+          variant="primary"
         />
         <MetricCard
-          title="Settled Revenue Paid"
-          value={`₹${(totalPaid / 100000).toFixed(2)} Lakh`}
-          subtitle="Verified bank settlements"
-          delta="100% compliant"
+          title="Revenue Settled"
+          value={`₹${(totalPaid / 100000).toFixed(2)}L`}
+          subtitle="Verified payments"
+          delta="100%"
           isPositive={true}
           icon={CheckCircle2}
-          variant="emerald"
+          variant="success"
         />
         <MetricCard
-          title="Active Annualized ARR"
-          value={`₹${(totalMonthlyARR / 100000).toFixed(2)} Lakh`}
-          subtitle={`${subscriptions.length} recurring SaaS contracts`}
+          title="Annualized ARR"
+          value={`₹${(totalMonthlyARR / 100000).toFixed(2)}L`}
+          subtitle={`${subscriptions.length} active plans`}
           icon={Calendar}
-          variant="cyan"
+          variant="primary"
         />
       </div>
 
-      {/* Invoices Master Table */}
-      <div className="surface-card p-5 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+      {/* Invoices */}
+      <div className="surface-card overflow-hidden">
+        <div
+          className="flex items-center justify-between px-5 py-3.5"
+          style={{ borderBottom: '1px solid var(--border-default)' }}
+        >
           <div className="flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Tax Invoices & Revenue Deliverables
+            <FileCheck className="w-4 h-4 text-[var(--accent-primary)]" />
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              Tax Invoices
             </span>
           </div>
-          <span className="text-[11px] font-mono text-slate-400">
-            GST Compliant (18% Output Tax)
-          </span>
+          <span className="text-[11px] text-[var(--text-muted)]">GST 18%</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-500 font-sans">
-                <th className="pb-2">Invoice #</th>
-                <th className="pb-2">Customer Name</th>
-                <th className="pb-2">Invoice Type</th>
-                <th className="pb-2">Subtotal</th>
-                <th className="pb-2">GST (18%)</th>
-                <th className="pb-2">Total Amount</th>
-                <th className="pb-2">Due Date</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2 text-right">Payment Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="py-3">
-                  <td className="py-3 font-bold text-cyan-400">{inv.id}</td>
-                  <td className="py-3 font-sans text-white font-medium">{inv.companyName}</td>
-                  <td className="py-3">
-                    <span className="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-slate-300 font-sans">
-                      {inv.invoiceType}
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Customer</th>
+              <th>Type</th>
+              <th>Subtotal</th>
+              <th>GST</th>
+              <th>Total</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th className="text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoices.map((inv) => (
+              <tr key={inv.id}>
+                <td className="font-mono font-bold text-[var(--accent-primary)]">{inv.id}</td>
+                <td className="text-[var(--text-primary)] font-medium">{inv.companyName}</td>
+                <td>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[11px] font-medium"
+                    style={{
+                      backgroundColor: 'var(--bg-muted)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-default)',
+                    }}
+                  >
+                    {inv.invoiceType}
+                  </span>
+                </td>
+                <td className="font-mono text-[var(--text-secondary)]">
+                  ₹{inv.subtotal.toLocaleString('en-IN')}
+                </td>
+                <td className="font-mono text-[var(--text-muted)]">
+                  ₹{inv.taxAmount.toLocaleString('en-IN')}
+                </td>
+                <td className="font-mono font-bold text-[var(--text-primary)]">
+                  ₹{inv.totalAmount.toLocaleString('en-IN')}
+                </td>
+                <td className="text-[var(--text-muted)]">{inv.dueDate}</td>
+                <td>
+                  {inv.status === 'Paid' ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--success)] bg-[var(--success-soft)] px-2 py-0.5 rounded-full">
+                      <CheckCircle2 className="w-3 h-3" /> Paid
                     </span>
-                  </td>
-                  <td className="py-3 text-slate-300">₹{inv.subtotal.toLocaleString('en-IN')}</td>
-                  <td className="py-3 text-slate-400">₹{inv.taxAmount.toLocaleString('en-IN')}</td>
-                  <td className="py-3 text-white font-bold text-sm">
-                    ₹{inv.totalAmount.toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 text-slate-400">{inv.dueDate}</td>
-                  <td className="py-3 font-sans">
-                    {inv.status === 'Paid' ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                        <CheckCircle2 className="w-3 h-3" /> Paid & Settled
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
-                        <Clock className="w-3 h-3" /> Payment Awaited
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 text-right">
-                    {inv.status !== 'Paid' ? (
-                      <button
-                        onClick={() => recordPayment(inv.id)}
-                        className="px-3 py-1 rounded text-xs font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition cursor-pointer shadow-sm"
-                      >
-                        [Record Payment]
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-slate-500">Settled</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--warning)] bg-[var(--warning-soft)] px-2 py-0.5 rounded-full">
+                      <Clock className="w-3 h-3" /> Awaiting
+                    </span>
+                  )}
+                </td>
+                <td className="text-right">
+                  {inv.status !== 'Paid' ? (
+                    <button
+                      onClick={() => recordPayment(inv.id)}
+                      className="btn-primary !py-1.5 !px-3 !text-[11px]"
+                      style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
+                    >
+                      Record Payment
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-[var(--text-muted)]">Settled</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Active Subscriptions Schedule */}
-      <div className="surface-card p-5 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+      {/* Subscriptions */}
+      <div className="surface-card overflow-hidden">
+        <div
+          className="flex items-center justify-between px-5 py-3.5"
+          style={{ borderBottom: '1px solid var(--border-default)' }}
+        >
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Active Recurring SaaS Subscriptions & Billing Schedules
+            <Calendar className="w-4 h-4 text-[var(--accent-primary)]" />
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              Active Subscriptions
             </span>
           </div>
-          <span className="text-[11px] font-mono text-slate-400">
-            {subscriptions.length} Active Plans
-          </span>
+          <span className="text-[11px] text-[var(--text-muted)]">{subscriptions.length} plans</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-500 font-sans">
-                <th className="pb-2">Subscription ID</th>
-                <th className="pb-2">Client Company</th>
-                <th className="pb-2">Service Plan</th>
-                <th className="pb-2">Frequency</th>
-                <th className="pb-2">Recurring Amount</th>
-                <th className="pb-2">Current Period</th>
-                <th className="pb-2">Status</th>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Client</th>
+              <th>Service</th>
+              <th>Frequency</th>
+              <th>Amount</th>
+              <th>Period</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {subscriptions.map((sub) => (
+              <tr key={sub.id}>
+                <td className="font-mono font-bold text-[var(--accent-primary)]">{sub.id}</td>
+                <td className="text-[var(--text-primary)] font-medium">{sub.companyName}</td>
+                <td className="text-[var(--text-secondary)]">{sub.productName}</td>
+                <td className="capitalize text-[var(--text-secondary)]">{sub.billingFrequency}</td>
+                <td className="font-mono font-bold text-[var(--text-primary)]">
+                  ₹{sub.amountPerPeriod.toLocaleString('en-IN')} /mo
+                </td>
+                <td className="text-[var(--text-muted)] text-[11px]">
+                  {sub.currentPeriodStart} → {sub.currentPeriodEnd}
+                </td>
+                <td>
+                  <span className="text-[11px] font-medium text-[var(--success)] bg-[var(--success-soft)] px-2 py-0.5 rounded-full">
+                    Active
+                  </span>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {subscriptions.map((sub) => (
-                <tr key={sub.id} className="py-3">
-                  <td className="py-3 text-cyan-400 font-bold">{sub.id}</td>
-                  <td className="py-3 font-sans text-white font-medium">{sub.companyName}</td>
-                  <td className="py-3 font-sans text-slate-200">{sub.productName}</td>
-                  <td className="py-3 capitalize text-slate-300">{sub.billingFrequency}</td>
-                  <td className="py-3 text-white font-bold">
-                    ₹{sub.amountPerPeriod.toLocaleString('en-IN')} /mo
-                  </td>
-                  <td className="py-3 text-slate-400">
-                    {sub.currentPeriodStart} to {sub.currentPeriodEnd}
-                  </td>
-                  <td className="py-3 font-sans">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                      Active
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

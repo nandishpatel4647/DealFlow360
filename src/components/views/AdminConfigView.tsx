@@ -21,63 +21,68 @@ export const AdminConfigView: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleSave = () => {
-    updatePolicy({
-      tierCeilings,
-      categoryCeilings,
-      approvalThresholds,
-    });
+    updatePolicy({ tierCeilings, categoryCeilings, approvalThresholds });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 4000);
   };
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      {/* Header */}
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5"
+        style={{ borderBottom: '1px solid var(--border-default)' }}
+      >
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Admin Governance & Business Rules Configuration
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800">
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center gap-2.5">
+            Admin Configuration
+            <span
+              className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+              style={{ backgroundColor: 'var(--accent-primary-soft)', color: 'var(--accent-primary)' }}
+            >
               Live Engine Control
             </span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Dynamic policy matrix driving real-time discount validation, multi-level approval routing, and freight split calculations.
+          <p className="text-sm text-[var(--text-tertiary)] mt-1">
+            Policy matrix driving discount validation, approval routing, and freight calculations.
           </p>
         </div>
 
-        <button
-          onClick={handleSave}
-          className="px-4 py-2 rounded-md text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-cyan-500/10"
-        >
-          <Save className="w-4 h-4" /> Save & Recompute Engine
+        <button onClick={handleSave} className="btn-primary">
+          <Save className="w-4 h-4" /> Save & Recompute
         </button>
       </div>
 
       {savedSuccess && (
-        <div className="p-3.5 rounded-lg bg-emerald-950/40 border border-emerald-500/60 text-xs text-emerald-300 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>
-            Governance policies updated! All active quotations and risk scores have been recalculated live against the new rules.
-          </span>
+        <div
+          className="p-3.5 rounded-lg text-xs flex items-center gap-2 animate-slide-down"
+          style={{
+            backgroundColor: 'var(--success-soft)',
+            border: '1px solid var(--success-border)',
+            color: 'var(--success)',
+          }}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Policies updated! All quotations recalculated against new rules.</span>
         </div>
       )}
 
-      {/* 3 Configuration Matrices */}
+      {/* 3 Config Matrices */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Matrix 1: Customer Tier Ceilings */}
+        {/* Tier Ceilings */}
         <div className="surface-card p-5 space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <Building className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Customer Tier Discount Limits
-            </span>
+          <div
+            className="flex items-center gap-2 pb-2"
+            style={{ borderBottom: '1px solid var(--border-default)' }}
+          >
+            <Building className="w-4 h-4 text-[var(--accent-primary)]" />
+            <span className="section-heading">Tier Discount Limits</span>
           </div>
 
-          <div className="space-y-3 text-xs">
+          <div className="space-y-3 text-[13px]">
             {(['Bronze', 'Silver', 'Gold'] as CustomerTierType[]).map((tier) => (
               <div key={tier} className="flex items-center justify-between">
-                <span className="text-slate-300 font-medium">{tier} Tier Max:</span>
+                <span className="text-[var(--text-secondary)] font-medium">{tier} Max:</span>
                 <div className="flex items-center gap-1 font-mono">
                   <input
                     type="number"
@@ -85,33 +90,31 @@ export const AdminConfigView: React.FC = () => {
                     max="50"
                     value={tierCeilings[tier]}
                     onChange={(e) =>
-                      setTierCeilings({
-                        ...tierCeilings,
-                        [tier]: parseFloat(e.target.value) || 0,
-                      })
+                      setTierCeilings({ ...tierCeilings, [tier]: parseFloat(e.target.value) || 0 })
                     }
-                    className="w-16 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-cyan-500 text-right"
+                    className="input-field !w-16 !py-1 !text-xs !text-right font-mono"
                   />
-                  <span className="text-slate-500">%</span>
+                  <span className="text-[var(--text-muted)]">%</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Matrix 2: Category Limits */}
+        {/* Category Ceilings */}
         <div className="surface-card p-5 space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <Layers className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Product Category Ceilings
-            </span>
+          <div
+            className="flex items-center gap-2 pb-2"
+            style={{ borderBottom: '1px solid var(--border-default)' }}
+          >
+            <Layers className="w-4 h-4 text-[var(--warning)]" />
+            <span className="section-heading">Category Ceilings</span>
           </div>
 
-          <div className="space-y-3 text-xs">
+          <div className="space-y-3 text-[13px]">
             {(['hardware', 'services', 'subscription'] as ProductCategoryType[]).map((cat) => (
               <div key={cat} className="flex items-center justify-between">
-                <span className="text-slate-300 font-medium capitalize">{cat} Ceiling:</span>
+                <span className="text-[var(--text-secondary)] font-medium capitalize">{cat}:</span>
                 <div className="flex items-center gap-1 font-mono">
                   <input
                     type="number"
@@ -119,129 +122,96 @@ export const AdminConfigView: React.FC = () => {
                     max="50"
                     value={categoryCeilings[cat]}
                     onChange={(e) =>
-                      setCategoryCeilings({
-                        ...categoryCeilings,
-                        [cat]: parseFloat(e.target.value) || 0,
-                      })
+                      setCategoryCeilings({ ...categoryCeilings, [cat]: parseFloat(e.target.value) || 0 })
                     }
-                    className="w-16 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-amber-500 text-right"
+                    className="input-field !w-16 !py-1 !text-xs !text-right font-mono"
                   />
-                  <span className="text-slate-500">%</span>
+                  <span className="text-[var(--text-muted)]">%</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Matrix 3: Approval Routing Thresholds */}
+        {/* Approval Thresholds */}
         <div className="surface-card p-5 space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-            <ShieldAlert className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Approval Risk Routing Triggers
-            </span>
+          <div
+            className="flex items-center gap-2 pb-2"
+            style={{ borderBottom: '1px solid var(--border-default)' }}
+          >
+            <ShieldAlert className="w-4 h-4 text-[var(--info)]" />
+            <span className="section-heading">Approval Routing</span>
           </div>
 
-          <div className="space-y-3 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-medium">Low Risk Max (Auto):</span>
-              <div className="flex items-center gap-1 font-mono">
-                <input
-                  type="number"
-                  step="0.5"
-                  value={approvalThresholds.lowRiskMax}
-                  onChange={(e) =>
-                    setApprovalThresholds({
-                      ...approvalThresholds,
-                      lowRiskMax: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="w-16 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500 text-right"
-                />
-                <span className="text-slate-500">pts</span>
+          <div className="space-y-3 text-[13px]">
+            {[
+              { label: 'Low Risk Max (Auto):', key: 'lowRiskMax' as const, unit: 'pts' },
+              { label: 'Manager Ceiling:', key: 'mediumRiskMax' as const, unit: 'pts' },
+              { label: 'Line Overage Max:', key: 'singleLineOverageMax' as const, unit: 'pts' },
+            ].map((item) => (
+              <div key={item.key} className="flex items-center justify-between">
+                <span className="text-[var(--text-secondary)] font-medium">{item.label}</span>
+                <div className="flex items-center gap-1 font-mono">
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={approvalThresholds[item.key]}
+                    onChange={(e) =>
+                      setApprovalThresholds({
+                        ...approvalThresholds,
+                        [item.key]: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="input-field !w-16 !py-1 !text-xs !text-right font-mono"
+                  />
+                  <span className="text-[var(--text-muted)]">{item.unit}</span>
+                </div>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-medium">Manager Ceiling (Med):</span>
-              <div className="flex items-center gap-1 font-mono">
-                <input
-                  type="number"
-                  step="0.5"
-                  value={approvalThresholds.mediumRiskMax}
-                  onChange={(e) =>
-                    setApprovalThresholds({
-                      ...approvalThresholds,
-                      mediumRiskMax: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="w-16 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500 text-right"
-                />
-                <span className="text-slate-500">pts</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-slate-300 font-medium">Single Line Overage Max:</span>
-              <div className="flex items-center gap-1 font-mono">
-                <input
-                  type="number"
-                  step="0.5"
-                  value={approvalThresholds.singleLineOverageMax}
-                  onChange={(e) =>
-                    setApprovalThresholds({
-                      ...approvalThresholds,
-                      singleLineOverageMax: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="w-16 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-purple-500 text-right"
-                />
-                <span className="text-slate-500">pts</span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Product Master Catalog */}
-      <div className="surface-card p-5 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+      {/* Product Catalog */}
+      <div className="surface-card overflow-hidden">
+        <div
+          className="flex items-center justify-between px-5 py-3.5"
+          style={{ borderBottom: '1px solid var(--border-default)' }}
+        >
           <div className="flex items-center gap-2">
-            <Package className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Configured Master Products & Deliverables Catalog ({products.length})
+            <Package className="w-4 h-4 text-[var(--accent-primary)]" />
+            <span className="text-sm font-semibold text-[var(--text-primary)]">
+              Product Catalog ({products.length})
             </span>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-500 font-sans">
-                <th className="pb-2">SKU</th>
-                <th className="pb-2">Product Name</th>
-                <th className="pb-2">Category</th>
-                <th className="pb-2">List Price (₹)</th>
-                <th className="pb-2">Cost Price (₹)</th>
-                <th className="pb-2">Billing Model</th>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product</th>
+              <th>Category</th>
+              <th>List Price</th>
+              <th>Cost Price</th>
+              <th>Billing</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr key={p.id}>
+                <td className="font-mono font-bold text-[var(--accent-primary)]">{p.sku}</td>
+                <td className="text-[var(--text-primary)] font-medium">{p.name}</td>
+                <td className="capitalize text-[var(--text-secondary)]">{p.categoryId}</td>
+                <td className="font-mono text-[var(--text-secondary)]">₹{p.listPrice.toLocaleString('en-IN')}</td>
+                <td className="font-mono text-[var(--text-muted)]">₹{p.costPrice.toLocaleString('en-IN')}</td>
+                <td className="text-[var(--text-secondary)]">
+                  {p.isRecurring ? `Recurring (${p.billingPeriod})` : 'One-Time'}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {products.map((p) => (
-                <tr key={p.id} className="py-2.5">
-                  <td className="py-2.5 text-cyan-400 font-bold">{p.sku}</td>
-                  <td className="py-2.5 font-sans text-white font-medium">{p.name}</td>
-                  <td className="py-2.5 capitalize text-slate-300">{p.categoryId}</td>
-                  <td className="py-2.5 text-slate-200">₹{p.listPrice.toLocaleString('en-IN')}</td>
-                  <td className="py-2.5 text-slate-400">₹{p.costPrice.toLocaleString('en-IN')}</td>
-                  <td className="py-2.5 font-sans text-slate-300">
-                    {p.isRecurring ? `Recurring (${p.billingPeriod})` : 'One-Time Delivery'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

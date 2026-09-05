@@ -1,12 +1,8 @@
 import React from 'react';
 import {
-  HeartPulse,
   AlertTriangle,
   Clock,
-  Zap,
   ShieldCheck,
-  CheckCircle2,
-  BellRing,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { MetricCard } from '../design-system/MetricCard';
@@ -37,55 +33,61 @@ export const DealHealthView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      {/* Header */}
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5"
+        style={{ borderBottom: '1px solid var(--border-default)' }}
+      >
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Deal Health & Anomaly Governance Center
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800">
-              Proactive Risk Interception
-            </span>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center gap-2.5">
+            Deal Health Monitor
+            {criticalCount > 0 && (
+              <span
+                className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+                style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
+              >
+                {criticalCount} Critical
+              </span>
+            )}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Continuously monitors deal velocity, discount spikes, and fulfillment delivery promises to intercept stalled deals before revenue leakage.
+          <p className="text-sm text-[var(--text-tertiary)] mt-1">
+            Monitors deal velocity, discount spikes, and delivery promises to intercept risks.
           </p>
         </div>
       </div>
 
-      {/* KPI Severity Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger-children">
         <MetricCard
           title="Critical Anomalies"
           value={criticalCount}
           subtitle="Immediate action required"
           icon={AlertTriangle}
-          variant="crimson"
+          variant="danger"
         />
         <MetricCard
           title="At-Risk Deals"
           value={atRiskCount}
-          subtitle="Delivery & negotiation slippage"
+          subtitle="Negotiation slippage"
           icon={Clock}
-          variant="amber"
+          variant="warning"
         />
         <MetricCard
-          title="Healthy Governed Deals"
+          title="Healthy Deals"
           value={Math.max(0, healthyCount)}
           subtitle="Progressing within SLAs"
           icon={ShieldCheck}
-          variant="emerald"
+          variant="success"
         />
       </div>
 
-      {/* Main Grid: Active Anomalies on Left, Audit Stream on Right */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Anomaly Cards */}
+        {/* Anomaly Cards */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between pb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Detected Risk Anomalies & Automated Interventions ({anomalies.length})
-            </span>
-          </div>
+          <span className="section-heading block pb-1">
+            Detected Anomalies ({anomalies.length})
+          </span>
 
           <div className="space-y-3">
             {anomalies.map((anom) => (
@@ -103,7 +105,7 @@ export const DealHealthView: React.FC = () => {
           </div>
         </div>
 
-        {/* Right 1 Col: Audit History */}
+        {/* Audit Trail */}
         <div className="space-y-4">
           <ActivityTimeline logs={auditLogs} />
         </div>

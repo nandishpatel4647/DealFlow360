@@ -2,14 +2,10 @@ import React, { useState } from 'react';
 import {
   ShieldCheck,
   CheckCircle2,
-  XCircle,
   RotateCcw,
   ArrowRight,
-  ShieldAlert,
   FileText,
   UserCheck,
-  DollarSign,
-  AlertOctagon,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { RiskBadge } from '../design-system/RiskBadge';
@@ -51,63 +47,68 @@ export const ApprovalsView: React.FC = () => {
     (q) => q.status === 'Pending Manager' || q.status === 'Pending Finance'
   ).length;
 
+  const filterOptions = [
+    { key: 'pending' as const, label: `Pending (${pendingCount})` },
+    { key: 'approved' as const, label: 'Approved' },
+    { key: 'all' as const, label: `All (${quotes.length})` },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      {/* Header */}
+      <div
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5"
+        style={{ borderBottom: '1px solid var(--border-default)' }}
+      >
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Approval & Risk Governance Center
-            <span className="text-xs font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800">
-              {pendingCount} Pending Multi-Tier Approvals
-            </span>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center gap-2.5">
+            Approvals & Risk Center
+            {pendingCount > 0 && (
+              <span
+                className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+                style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}
+              >
+                {pendingCount} Pending
+              </span>
+            )}
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Enforces multi-level commercial discipline. High-risk quotations require Sales Manager review followed by Finance concurrence.
+          <p className="text-sm text-[var(--text-tertiary)] mt-1">
+            Multi-level commercial governance. High-risk deals require Sales Manager → Finance concurrence.
           </p>
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 p-1 rounded-lg bg-slate-900 border border-slate-800">
-          <button
-            onClick={() => setFilter('pending')}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
-              filter === 'pending'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Pending ({pendingCount})
-          </button>
-          <button
-            onClick={() => setFilter('approved')}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
-              filter === 'approved'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Approved
-          </button>
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition cursor-pointer ${
-              filter === 'all'
-                ? 'bg-slate-800 text-white'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            All Deals ({quotes.length})
-          </button>
+        <div
+          className="flex items-center gap-0.5 p-1 rounded-lg"
+          style={{ backgroundColor: 'var(--bg-muted)', border: '1px solid var(--border-default)' }}
+        >
+          {filterOptions.map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setFilter(opt.key)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition cursor-pointer ${
+                filter === opt.key
+                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'
+              }`}
+              style={
+                filter === opt.key
+                  ? { border: '1px solid var(--border-default)' }
+                  : { border: '1px solid transparent' }
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Main Grid: Queue on Left, Decision Detail on Right */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 1 Col: Approvals Queue List */}
+        {/* Left: Queue */}
         <div className="space-y-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block pb-1">
-            Governance Queue ({filteredQuotes.length})
+          <span className="section-heading block pb-1">
+            Queue ({filteredQuotes.length})
           </span>
 
           <div className="space-y-2.5">
@@ -117,100 +118,122 @@ export const ApprovalsView: React.FC = () => {
                 <div
                   key={q.id}
                   onClick={() => setSelectedQuoteId(q.id)}
-                  className={`p-4 rounded-lg surface-card border transition cursor-pointer ${
+                  className="surface-card-interactive p-4"
+                  style={
                     isSelected
-                      ? 'border-cyan-500/80 bg-slate-800/80 shadow-md'
-                      : 'border-slate-800 hover:border-slate-700 hover:bg-slate-900/60'
-                  }`}
+                      ? {
+                          borderColor: 'var(--accent-primary)',
+                          boxShadow: '0 0 0 3px var(--accent-primary-soft)',
+                        }
+                      : undefined
+                  }
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-cyan-400">{q.id}</span>
+                    <span className="text-xs font-mono font-bold text-[var(--accent-primary)]">
+                      {q.id}
+                    </span>
                     <RiskBadge level={q.riskLevel} score={q.blendedRiskScore} size="sm" />
                   </div>
 
-                  <h4 className="mt-1.5 text-xs font-semibold text-white">{q.companyName}</h4>
+                  <h4 className="mt-1.5 text-[13px] font-semibold text-[var(--text-primary)]">
+                    {q.companyName}
+                  </h4>
 
                   <div className="mt-2 flex items-baseline justify-between text-xs font-mono">
-                    <span className="text-slate-300 font-bold">
+                    <span className="text-[var(--text-primary)] font-bold">
                       ₹{q.totalNetAmount.toLocaleString('en-IN')}
                     </span>
                     <span
-                      className={
-                        q.overallMarginPercent >= 30 ? 'text-emerald-400' : 'text-amber-400'
-                      }
+                      style={{
+                        color:
+                          q.overallMarginPercent >= 30
+                            ? 'var(--success)'
+                            : 'var(--warning)',
+                      }}
                     >
-                      {q.overallMarginPercent}% Margin
+                      {q.overallMarginPercent}%
                     </span>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>Stage: {q.approvalStage}</span>
-                    <StatusBadge status={q.status} />
+                  <div
+                    className="mt-2 pt-2 flex items-center justify-between text-[11px] text-[var(--text-muted)]"
+                    style={{ borderTop: '1px solid var(--border-subtle)' }}
+                  >
+                    <span>{q.approvalStage}</span>
+                    <StatusBadge status={q.status} size="sm" />
                   </div>
                 </div>
               );
             })}
 
             {filteredQuotes.length === 0 && (
-              <div className="p-8 text-center text-slate-500 text-xs surface-card">
-                No quotations found matching this filter.
+              <div className="surface-card p-8 text-center text-[var(--text-muted)] text-xs">
+                No quotations match this filter.
               </div>
             )}
           </div>
         </div>
 
-        {/* Right 2 Cols: Selected Quote Risk Audit & Decision Actions */}
+        {/* Right: Detail */}
         {activeQuote ? (
           <div className="lg:col-span-2 space-y-4">
-            {/* Header Box */}
+            {/* Header */}
             <div className="surface-card p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3"
+                style={{ borderBottom: '1px solid var(--border-default)' }}
+              >
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-bold text-white font-mono">{activeQuote.id}</span>
-                    <span className="text-sm text-slate-300 font-semibold">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-base font-bold text-[var(--text-primary)] font-mono">
+                      {activeQuote.id}
+                    </span>
+                    <span className="text-sm text-[var(--text-secondary)] font-semibold">
                       — {activeQuote.companyName}
                     </span>
                     <StatusBadge status={activeQuote.status} />
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Customer Tier: <span className="text-slate-200">{activeQuote.tier}</span> • Assigned Reviewer:{' '}
-                    <span className="text-cyan-400">{activeQuote.approvalAssignedTo}</span>
+                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
+                    Tier: <span className="text-[var(--text-secondary)]">{activeQuote.tier}</span> •
+                    Reviewer: <span className="text-[var(--accent-primary)]">{activeQuote.approvalAssignedTo}</span>
                   </p>
                 </div>
 
                 <button
                   onClick={() => setActiveView('builder')}
-                  className="px-3 py-1.5 rounded text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+                  className="btn-ghost !text-xs"
                 >
-                  <FileText className="w-3.5 h-3.5" /> Edit in Quote Builder
+                  <FileText className="w-3.5 h-3.5" /> Open in Builder
                 </button>
               </div>
 
-              {/* Action Decision Toolbar */}
-              <div className="mt-4 p-4 rounded-lg bg-slate-900/90 border border-slate-800 space-y-3">
+              {/* Decision Actions */}
+              <div
+                className="mt-4 p-4 rounded-lg space-y-3"
+                style={{ backgroundColor: 'var(--bg-muted)', border: '1px solid var(--border-default)' }}
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                    Governance Decision Actions (Active Role: {userRole.toUpperCase()})
+                  <span className="section-heading">
+                    Decision Actions ({userRole})
                   </span>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <span className="text-slate-500">Quick Role Switch:</span>
+                    <span className="text-[var(--text-muted)]">Role:</span>
                     <button
                       onClick={() => setUserRole('sales_manager')}
-                      className={`px-2 py-0.5 rounded text-[11px] ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
                         userRole === 'sales_manager'
-                          ? 'bg-amber-500 text-slate-950 font-bold'
-                          : 'bg-slate-800 text-slate-400'
+                          ? 'bg-[var(--accent-primary)] text-white'
+                          : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)] border border-[var(--border-default)]'
                       }`}
                     >
                       Manager
                     </button>
                     <button
                       onClick={() => setUserRole('finance')}
-                      className={`px-2 py-0.5 rounded text-[11px] ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
                         userRole === 'finance'
-                          ? 'bg-purple-500 text-white font-bold'
-                          : 'bg-slate-800 text-slate-400'
+                          ? 'bg-[var(--info)] text-white'
+                          : 'bg-[var(--bg-surface)] text-[var(--text-tertiary)] border border-[var(--border-default)]'
                       }`}
                     >
                       Finance
@@ -218,7 +241,7 @@ export const ApprovalsView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Stage 1: Sales Manager Actions */}
+                {/* Manager Actions */}
                 {activeQuote.status === 'Pending Manager' && (
                   <div className="pt-2 flex flex-wrap items-center gap-3">
                     {activeQuote.riskLevel === 'HIGH' ? (
@@ -226,80 +249,86 @@ export const ApprovalsView: React.FC = () => {
                         onClick={() =>
                           managerApprove(
                             activeQuote.id,
-                            'Commercial discount verified by Sales Manager. Forwarding to Finance for margin concurrency.'
+                            'Commercial discount verified. Forwarding to Finance.'
                           )
                         }
-                        className="px-4 py-2 rounded-md text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer"
+                        className="btn-primary"
+                        style={{ backgroundColor: 'var(--warning)', borderColor: 'var(--warning)' }}
                       >
-                        <UserCheck className="w-4 h-4" /> [Approve & Forward to Finance]
+                        <UserCheck className="w-4 h-4" /> Approve & Forward to Finance
                       </button>
                     ) : (
                       <button
                         onClick={() =>
-                          managerApprove(activeQuote.id, 'Terms within acceptable business boundaries.')
+                          managerApprove(activeQuote.id, 'Terms within acceptable boundaries.')
                         }
-                        className="px-4 py-2 rounded-md text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1.5 cursor-pointer"
+                        className="btn-primary"
+                        style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
                       >
-                        <CheckCircle2 className="w-4 h-4" /> [Approve Quotation]
+                        <CheckCircle2 className="w-4 h-4" /> Approve Quotation
                       </button>
                     )}
-
                     <button
                       onClick={() => setShowReturnModal(true)}
-                      className="px-3.5 py-2 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5 cursor-pointer"
+                      className="btn-secondary"
+                      style={{ color: 'var(--danger)' }}
                     >
-                      <RotateCcw className="w-3.5 h-3.5" /> Return with Revision Notes
+                      <RotateCcw className="w-3.5 h-3.5" /> Return for Revision
                     </button>
                   </div>
                 )}
 
-                {/* Stage 2: Finance Actions (Strictly only after Manager Approval for HIGH Risk) */}
+                {/* Finance Actions */}
                 {activeQuote.status === 'Pending Finance' && (
                   <div className="pt-2 flex flex-wrap items-center gap-3">
                     <button
                       onClick={() =>
                         financeApprove(
                           activeQuote.id,
-                          'Gross margin impact (26.8%) audited and ratified by Corporate Finance.'
+                          'Margin impact audited and ratified by Finance.'
                         )
                       }
-                      className="px-4 py-2 rounded-md text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer"
+                      className="btn-primary"
+                      style={{ backgroundColor: 'var(--info)', borderColor: 'var(--info)' }}
                     >
-                      <ShieldCheck className="w-4 h-4" /> [Approve Deal — Final Finance Authorization]
+                      <ShieldCheck className="w-4 h-4" /> Final Finance Authorization
                     </button>
-
                     <button
                       onClick={() => setShowReturnModal(true)}
-                      className="px-3.5 py-2 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5 cursor-pointer"
+                      className="btn-secondary"
+                      style={{ color: 'var(--danger)' }}
                     >
-                      <RotateCcw className="w-3.5 h-3.5" /> Reject / Return to Sales
+                      <RotateCcw className="w-3.5 h-3.5" /> Reject / Return
                     </button>
                   </div>
                 )}
 
                 {activeQuote.status === 'Fully Approved' && (
-                  <div className="p-2.5 rounded bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between">
-                    <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" /> Deal is fully approved through governance protocol.
+                  <div
+                    className="p-3 rounded-lg flex items-center justify-between"
+                    style={{ backgroundColor: 'var(--success-soft)', border: '1px solid var(--success-border)' }}
+                  >
+                    <span className="text-xs text-[var(--success)] font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" /> Fully approved through governance protocol.
                     </span>
                     <button
                       onClick={() => setActiveView('fulfillment')}
-                      className="px-3 py-1 rounded text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition flex items-center gap-1"
+                      className="btn-primary !py-1.5 !px-3 !text-xs"
+                      style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
                     >
-                      Fulfill Order <ArrowRight className="w-3.5 h-3.5" />
+                      Fulfill <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
 
                 {activeQuote.status === 'Draft' && (
-                  <p className="text-xs text-slate-400">
-                    Quote is currently in Draft. Sales rep has not submitted for governance routing.
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Quote is in Draft. Sales rep has not submitted for governance.
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Explainable Risk Box */}
             <ExplainableRiskCard
               breakdown={activeQuote.riskBreakdown}
               riskLevel={activeQuote.riskLevel}
@@ -307,81 +336,80 @@ export const ApprovalsView: React.FC = () => {
               assignedTo={activeQuote.approvalAssignedTo}
             />
 
-            {/* Line-level Audit Table */}
-            <div className="surface-card p-5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300 block pb-2 border-b border-slate-800">
-                Itemized Line Evaluation
-              </span>
-
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-left text-xs font-mono">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-500 font-sans">
-                      <th className="pb-2">Product / Service</th>
-                      <th className="pb-2 text-center">Qty</th>
-                      <th className="pb-2">Discount %</th>
-                      <th className="pb-2">Category Limit</th>
-                      <th className="pb-2">Governance Flag</th>
-                      <th className="pb-2">Net Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {activeQuote.lines.map((l) => (
-                      <tr key={l.id} className="py-2.5">
-                        <td className="py-2.5 font-sans text-white font-medium">
-                          {l.productName}
-                        </td>
-                        <td className="py-2.5 text-center text-slate-300">{l.quantity}</td>
-                        <td className="py-2.5 font-bold text-slate-200">{l.discountPercent}%</td>
-                        <td className="py-2.5 text-slate-400">{l.discountCeiling}%</td>
-                        <td className="py-2.5 font-sans">
-                          {l.isOverLimit ? (
-                            <span className="text-[11px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
-                              OVER (+{l.overLimitPoints}pt)
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                              Compliant
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2.5 text-slate-200 font-bold">
-                          ₹{l.netAmount.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Line Audit Table */}
+            <div className="surface-card overflow-hidden">
+              <div
+                className="px-5 py-3.5"
+                style={{ borderBottom: '1px solid var(--border-default)' }}
+              >
+                <span className="text-sm font-semibold text-[var(--text-primary)]">
+                  Line Evaluation
+                </span>
               </div>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th className="text-center">Qty</th>
+                    <th>Discount</th>
+                    <th>Ceiling</th>
+                    <th>Status</th>
+                    <th>Net Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeQuote.lines.map((l) => (
+                    <tr key={l.id}>
+                      <td className="text-[var(--text-primary)] font-medium">{l.productName}</td>
+                      <td className="text-center font-mono">{l.quantity}</td>
+                      <td className="font-mono font-semibold">{l.discountPercent}%</td>
+                      <td className="font-mono text-[var(--text-muted)]">{l.discountCeiling}%</td>
+                      <td>
+                        {l.isOverLimit ? (
+                          <span className="text-[11px] font-semibold text-[var(--danger)] bg-[var(--danger-soft)] px-2 py-0.5 rounded-full">
+                            OVER +{l.overLimitPoints}pt
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-medium text-[var(--success)] bg-[var(--success-soft)] px-2 py-0.5 rounded-full">
+                            Compliant
+                          </span>
+                        )}
+                      </td>
+                      <td className="font-mono font-semibold text-[var(--text-primary)]">
+                        ₹{l.netAmount.toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* Audit Trail */}
             <ActivityTimeline logs={auditLogs} quoteId={activeQuote.id} />
           </div>
         ) : null}
       </div>
 
-      {/* Return Notes Modal */}
+      {/* Return Modal */}
       {showReturnModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="surface-card p-6 max-w-md w-full border border-slate-700 shadow-2xl space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-rose-400" /> Return Quotation for Revision
+        <div className="modal-overlay flex items-center justify-center p-4">
+          <div className="modal-content p-6 max-w-md w-full space-y-4">
+            <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-[var(--danger)]" /> Return for Revision
             </h3>
-            <p className="text-xs text-slate-400">
-              Provide actionable guidance for the sales rep to adjust discounts or product mix.
+            <p className="text-xs text-[var(--text-tertiary)]">
+              Provide guidance for the sales rep to adjust discounts or product mix.
             </p>
             <textarea
               rows={3}
               value={returnComments}
               onChange={(e) => setReturnComments(e.target.value)}
-              placeholder="e.g. Reduce service discount to 10% or attach Extended Warranty to restore margin..."
-              className="w-full p-2.5 rounded-md bg-slate-900 border border-slate-700 text-xs text-white outline-none focus:border-cyan-500"
+              placeholder="e.g. Reduce service discount to 10% or attach Extended Warranty..."
+              className="input-field !text-xs"
             />
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowReturnModal(false)}
-                className="px-3 py-1.5 rounded text-xs text-slate-400 hover:text-white"
+                className="btn-ghost"
               >
                 Cancel
               </button>
@@ -396,7 +424,7 @@ export const ApprovalsView: React.FC = () => {
                     setReturnComments('');
                   }
                 }}
-                className="px-4 py-1.5 rounded text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white"
+                className="btn-danger"
               >
                 Submit Return
               </button>
