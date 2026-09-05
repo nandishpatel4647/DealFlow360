@@ -290,7 +290,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const logout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setUserRoleState('sales_rep');
+    setActiveViewState('landing');
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '#/landing');
+      scrollToTopGlobal();
+    }
   };
 
   const updateUserProfile = (updates: { name?: string; title?: string; avatarUrl?: string }) => {
@@ -373,13 +379,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const getInitialView = () => {
+    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
+    let isAuth = false;
+    let role: UserRole = 'sales_rep';
+    if (savedAuth) {
+      try {
+        const parsed = JSON.parse(savedAuth);
+        isAuth = parsed.isAuthenticated || false;
+        role = parsed.userRole || 'sales_rep';
+      } catch {
+        // ignore
+      }
+    }
+
     if (typeof window !== 'undefined' && window.location.hash) {
       const parsed = parseRouteFromHash(window.location.hash);
-      if (parsed.view) return parsed.view;
+      if (parsed.view) {
+        // If not authenticated, only allow 'login' or default to 'landing'
+        if (!isAuth && parsed.view !== 'login') {
+          return 'landing';
+        }
+        return parsed.view;
+      }
     }
-    const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
-    const isAuth = savedAuth ? JSON.parse(savedAuth).isAuthenticated : false;
-    const role = savedAuth ? JSON.parse(savedAuth).userRole : 'sales_rep';
+
     if (!isAuth) return 'landing';
     return role === 'customer' ? 'portal' : 'dashboard';
   };
@@ -423,6 +446,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (typeof window === 'undefined') return;
       const { view, quoteId } = parseRouteFromHash(window.location.hash);
       if (view) {
+        if (!isAuthenticated && view !== 'login' && view !== 'landing') {
+          setActiveViewState('landing');
+          window.history.replaceState(null, '', '#/landing');
+          scrollToTopGlobal();
+          return;
+        }
         setActiveViewState(view);
         if (quoteId) {
           setSelectedQuoteIdState(quoteId);
@@ -433,6 +462,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ? (userRole === 'customer' ? 'portal' : 'dashboard')
           : 'landing';
         setActiveViewState(defaultView);
+        window.history.replaceState(null, '', `#/${defaultView}`);
         scrollToTopGlobal();
       }
     };
@@ -442,11 +472,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Synchronize initial URL hash on mount
     if (typeof window !== 'undefined') {
-      if (!window.location.hash) {
-        const defaultView = isAuthenticated
-          ? (userRole === 'customer' ? 'portal' : 'dashboard')
-          : 'landing';
-        window.history.replaceState(null, '', `#/${defaultView}`);
+      const currentInitial = getInitialView();
+      if (!window.location.hash || (!isAuthenticated && (window.location.hash === '#/portal' || window.location.hash === '#/dashboard'))) {
+        window.history.replaceState(null, '', `#/${currentInitial}`);
       }
     }
 

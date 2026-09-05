@@ -15,7 +15,11 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   subtitle = 'Salesforce Light Enterprise CPQ',
   className = '',
 }) => {
-  const isDark = theme === 'dark';
+  const isDark =
+    theme === 'dark' ||
+    (theme === 'auto' &&
+      typeof document !== 'undefined' &&
+      document.documentElement.classList.contains('dark'));
 
   // Dimension configurations
   const dimensions = {
@@ -78,16 +82,16 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       {/* Brand Typography */}
       <div className="flex flex-col text-left leading-tight">
         <span
-          className={`font-extrabold tracking-tight ${dimensions.title} ${
+          className={`font-black tracking-tight ${dimensions.title} ${
             isDark ? 'text-white' : 'text-slate-900'
           }`}
         >
-          DealFlow<span className="text-[#0176D3]">360</span>
+          DealFlow<span className={isDark ? 'text-[#38bdf8]' : 'text-[#0176D3]'}>360</span>
         </span>
         {showSubtitle && (
           <span
-            className={`font-semibold uppercase tracking-wide ${dimensions.sub} ${
-              isDark ? 'text-blue-200/80' : 'text-slate-500'
+            className={`font-semibold uppercase tracking-wider ${dimensions.sub} ${
+              isDark ? 'text-blue-200/90' : 'text-slate-500'
             } -mt-0.5`}
           >
             {subtitle}

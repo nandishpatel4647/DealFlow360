@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Zap,
   Check,
@@ -19,8 +19,6 @@ import {
   Cog,
   PenLine,
   CircleCheck,
-  Sun,
-  Moon,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { UserRole } from '../../types';
@@ -86,62 +84,54 @@ interface LandingPageViewProps {
 
 // ---------- Top Nav ----------
 const DFNav: React.FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
-  const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle('dark', next);
-  };
-
   return (
     <div
       className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-32px)] max-w-6xl"
       data-testid="landing-nav"
     >
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-between gap-4 shadow-sm border border-slate-200 dark:border-slate-800">
-        {/* Unified 3D Logo */}
+      <div className="bg-[#0B1528]/95 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-between gap-4 shadow-xl border border-slate-800">
+        {/* Unified 3D Logo with pure white text on dark navbar */}
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="flex items-center cursor-pointer transition hover:opacity-90"
           data-testid="brand-logo"
         >
-          <BrandLogo size="md" subtitle="Deal Cockpit" />
+          <BrandLogo size="md" theme="dark" subtitle="Deal Cockpit" />
         </button>
 
         {/* Navigation Links */}
-        <div className="hidden lg:flex items-center gap-1 mx-auto text-[13px] font-medium text-slate-600 dark:text-slate-300">
+        <div className="hidden lg:flex items-center gap-1 mx-auto text-[13px] font-medium text-slate-300">
           <a
             href="#simulator"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#0176D3] transition"
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
             data-testid="nav-simulator"
           >
             Live Simulator
           </a>
           <a
             href="#personas"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#0176D3] transition"
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
             data-testid="nav-personas"
           >
             Stakeholders
           </a>
           <a
             href="#roi"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#0176D3] transition"
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
             data-testid="nav-roi"
           >
             ROI Calculator
           </a>
           <a
             href="#lifecycle"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#0176D3] transition"
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
             data-testid="nav-lifecycle"
           >
             How it works
           </a>
           <a
             href="#trust"
-            className="px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-[#0176D3] transition"
+            className="px-3.5 py-1.5 rounded-full hover:bg-slate-800 hover:text-white transition text-slate-300"
             data-testid="nav-trust"
           >
             Enterprise Trust
@@ -151,16 +141,8 @@ const DFNav: React.FC<{ onOpenAuth: () => void }> = ({ onOpenAuth }) => {
         {/* Right Actions */}
         <div className="flex items-center gap-2">
           <button
-            onClick={toggleTheme}
-            className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-300 cursor-pointer border border-transparent hover:border-slate-200"
-            data-testid="theme-toggle-button"
-            aria-label="Toggle theme"
-          >
-            {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
-          </button>
-          <button
             onClick={onOpenAuth}
-            className="bg-[#0176D3] hover:bg-blue-700 text-white font-bold text-[13px] px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition flex items-center gap-1.5 cursor-pointer"
+            className="bg-[#0176D3] hover:bg-blue-600 text-white font-bold text-[13px] px-5 py-2.5 rounded-full shadow-md hover:shadow-lg transition flex items-center gap-1.5 cursor-pointer"
             data-testid="launch-cockpit-button"
           >
             Launch Command Center <ArrowRight className="w-3.5 h-3.5" />
@@ -771,6 +753,15 @@ const trustBadges = [
 // ---------- Main Landing Page ----------
 export const LandingPageView: React.FC<LandingPageViewProps> = ({ onOpenAuth }) => {
   const { login, loginAsCustomer, loginAsRole, setActiveView, setUserRole, isAuthenticated } = useAppStore();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      document.documentElement.classList.remove('dark');
+      if (window.location.hash !== '#/landing') {
+        window.history.replaceState(null, '', '#/landing');
+      }
+    }
+  }, []);
 
   const handleOpenAuth = () => {
     if (onOpenAuth) {
