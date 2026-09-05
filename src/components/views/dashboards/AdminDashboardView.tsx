@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, TrendingUp, AlertTriangle, ShieldCheck, Settings, Users, ArrowRight, Package } from 'lucide-react';
+import { IndianRupee, TrendingUp, AlertTriangle, ShieldCheck, Settings, Users, ArrowRight, Package } from 'lucide-react';
 import { useAppStore } from '../../../store/useAppStore';
 import { MetricCard } from '../../design-system/MetricCard';
 import { StatusBadge } from '../../design-system/StatusBadge';
@@ -64,7 +64,7 @@ export const AdminDashboardView: React.FC = () => {
           title="Platform Pipeline Total"
           value={`₹${(totalPipelineRevenue / 100000).toFixed(2)} Lakh`}
           subtitle={`${quotes.length} total active quotations`}
-          icon={DollarSign}
+          icon={IndianRupee}
           variant="cyan"
         />
         <MetricCard

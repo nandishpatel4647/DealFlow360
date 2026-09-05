@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Filter,
   Search,
-  DollarSign,
   Building,
   CreditCard,
   ChevronRight,

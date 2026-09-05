@@ -48,8 +48,8 @@ export interface Product {
   id: string;
   name: string;
   categoryId: ProductCategoryType;
-  listPrice: number; // In INR (₹) or USD
-  costPrice: number;
+  listPrice: number; // In INR (₹)
+  costPrice: number; // In INR (₹)
   isRecurring: boolean;
   billingPeriod?: 'monthly' | 'quarterly' | 'yearly';
   sku: string;
