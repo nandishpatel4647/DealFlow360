@@ -34,25 +34,8 @@ export const ApprovalStepper: React.FC<ApprovalStepperProps> = ({ status }) => {
       isCurrent: status === 'Pending Manager',
     },
     {
-      id: 'rep_confirm',
-      label: '3. Rep Confirmation',
-      isCompleted:
-        status === 'Pending Customer' ||
-        status === 'Under Negotiation' ||
-        status === 'Customer Revision Requested' ||
-        status === 'Customer Approved' ||
-        status === 'Pending Finance' ||
-        status === 'Finance Approved' ||
-        status === 'Fully Approved' ||
-        status === 'Confirmed' ||
-        status === 'Fulfillment' ||
-        status === 'Invoiced' ||
-        status === 'Paid',
-      isCurrent: status === 'Manager Approved',
-    },
-    {
       id: 'customer',
-      label: '4. Customer Review',
+      label: '3. Customer Review',
       isCompleted:
         status === 'Customer Approved' ||
         status === 'Pending Finance' ||
@@ -64,12 +47,13 @@ export const ApprovalStepper: React.FC<ApprovalStepperProps> = ({ status }) => {
         status === 'Paid',
       isCurrent:
         status === 'Pending Customer' ||
+        status === 'Manager Approved' ||
         status === 'Under Negotiation' ||
         status === 'Customer Revision Requested',
     },
     {
       id: 'finance',
-      label: '5. Finance Review',
+      label: '4. Finance Review',
       isCompleted:
         status === 'Finance Approved' ||
         status === 'Fully Approved' ||
@@ -77,22 +61,21 @@ export const ApprovalStepper: React.FC<ApprovalStepperProps> = ({ status }) => {
         status === 'Fulfillment' ||
         status === 'Invoiced' ||
         status === 'Paid',
-      isCurrent: status === 'Pending Finance',
+      isCurrent: status === 'Pending Finance' || status === 'Customer Approved',
     },
     {
       id: 'fulfillment',
-      label: '6. Fulfillment',
+      label: '5. Fulfillment',
       isCompleted: status === 'Invoiced' || status === 'Paid',
       isCurrent:
         status === 'Finance Approved' ||
-        status === 'Customer Approved' ||
         status === 'Fully Approved' ||
         status === 'Confirmed' ||
         status === 'Fulfillment',
     },
     {
       id: 'invoice',
-      label: '7. Invoice',
+      label: '6. Invoice',
       isCompleted: status === 'Paid',
       isCurrent: status === 'Invoiced',
     },

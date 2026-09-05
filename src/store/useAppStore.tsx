@@ -13,6 +13,12 @@ import {
   AuditLog,
   ConfigPolicy,
   ChatMessage,
+  DeliveryAddress,
+  FulfillmentStage,
+  QuoteRevisionVersion,
+  CustomerRevisionRequest,
+  CustomerRevisionRequestLine,
+  QuoteStatus,
 } from '../types';
 import {
   SEED_COMPANIES,
@@ -83,6 +89,9 @@ interface AppContextType {
   addCompany: (company: Company) => void;
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
+  addWarehouse: (warehouse: Warehouse) => void;
+  updateWarehouse: (warehouse: Warehouse) => void;
+  updateInventoryStock: (warehouseId: string, productId: string, quantityOnHand: number) => void;
   sendMessage: (quoteId: string, text: string, sender: 'customer' | 'rep' | 'manager' | 'system', senderName: string) => void;
   createNewQuote: (companyId: string) => string;
   updateQuoteLine: (quoteId: string, lineId: string, quantity: number, discountPercent: number) => void;
@@ -99,8 +108,14 @@ interface AppContextType {
     quoteId: string,
     notes: string,
     lineDiscounts: Record<string, number>,
-    requestedDelivery?: string
+    requestedDelivery?: string,
+    lineComments?: Record<string, string>
   ) => void;
+  acceptCustomerRevision: (quoteId: string) => void;
+  rejectCustomerRevision: (quoteId: string, reason?: string) => void;
+  updateDeliveryAddress: (quoteId: string, address: DeliveryAddress) => void;
+  updatePromisedDeliveryDate: (quoteId: string, date: string) => void;
+  advanceFulfillmentStage: (quoteId: string, stage: FulfillmentStage) => void;
   customerAcceptQuote: (quoteId: string) => void;
   acceptFulfillment: (quoteId: string) => { invoiceId: string; isNew: boolean } | null;
   recordPayment: (invoiceId: string) => void;
@@ -449,7 +464,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [products, setProducts] = useState<Product[]>(initialSaved?.products || SEED_PRODUCTS);
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialSaved?.warehouses || SEED_WAREHOUSES);
   const [inventory, setInventory] = useState<WarehouseInventory[]>(initialSaved?.inventory || SEED_INVENTORY);
-  const [quotes, setQuotes] = useState<Quote[]>(initialSaved?.quotes || SEED_QUOTES);
+  const [quotes, setQuotes] = useState<Quote[]>(() => {
+    if (!initialSaved?.quotes) return SEED_QUOTES;
+    const existingIds = new Set(initialSaved.quotes.map((q: Quote) => q.id));
+    const missingSeedQuotes = SEED_QUOTES.filter((q) => !existingIds.has(q.id));
+    return [...initialSaved.quotes, ...missingSeedQuotes];
+  });
   const [invoices, setInvoices] = useState<Invoice[]>(initialSaved?.invoices || SEED_INVOICES);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(
     initialSaved?.subscriptions || SEED_SUBSCRIPTIONS
@@ -593,6 +613,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setProducts((prev) => prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
   };
 
+  const addWarehouse = (newWarehouse: Warehouse) => {
+    setWarehouses((prev) => [...prev, newWarehouse]);
+    const newInvEntries: WarehouseInventory[] = products.map((p, idx) => ({
+      id: `inv-${Date.now()}-${idx}`,
+      warehouseId: newWarehouse.id,
+      productId: p.id,
+      quantityOnHand: 250,
+      quantityReserved: 0,
+    }));
+    setInventory((prev) => [...prev, ...newInvEntries]);
+    addCustomAuditLog('SYSTEM', currentUser?.name || 'Admin', `Added New Warehouse: ${newWarehouse.name} (${newWarehouse.id})`);
+  };
+
+  const updateWarehouse = (updatedWarehouse: Warehouse) => {
+    setWarehouses((prev) => prev.map((w) => (w.id === updatedWarehouse.id ? updatedWarehouse : w)));
+    addCustomAuditLog('SYSTEM', currentUser?.name || 'Admin', `Updated Warehouse Details: ${updatedWarehouse.name}`);
+  };
+
+  const updateInventoryStock = (warehouseId: string, productId: string, newStock: number) => {
+    setInventory((prev) => {
+      const exists = prev.some((i) => i.warehouseId === warehouseId && i.productId === productId);
+      if (exists) {
+        return prev.map((item) =>
+          item.warehouseId === warehouseId && item.productId === productId
+            ? { ...item, quantityOnHand: Math.max(0, newStock) }
+            : item
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: `inv-${Date.now()}`,
+          warehouseId,
+          productId,
+          quantityOnHand: Math.max(0, newStock),
+          quantityReserved: 0,
+        },
+      ];
+    });
+    addCustomAuditLog('SYSTEM', currentUser?.name || 'Inventory Mgr', `Stock Updated for Warehouse ${warehouseId}: ${newStock} units`);
+  };
+
   // Re-evaluate a quote's pricing, risk, and confidence
   const recomputeQuote = (quote: Quote, customPolicy?: ConfigPolicy): Quote => {
     const policy = customPolicy || configPolicy;
@@ -659,6 +721,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       lines: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      promisedDeliveryDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
+      deliveryAddress: {
+        contactName: company.name + ' Representative',
+        contactPhone: '+91 98250 00000',
+        contactEmail: company.contactEmail,
+        addressLine1: 'Corporate Park, Phase 1',
+        city: 'Ahmedabad',
+        state: 'Gujarat',
+        postalCode: '380015',
+        country: 'India',
+      },
+      revisionHistory: [
+        {
+          version: 1,
+          updatedBy: currentUser?.name || 'P. Mehta (Sales Rep)',
+          timestamp: new Date().toISOString(),
+          promisedDeliveryDate: new Date(Date.now() + 86400000 * 30).toISOString().split('T')[0],
+          discountSummary: 'Initial proposal created',
+          status: 'Draft',
+        },
+      ],
     };
 
     setQuotes((prev) => [newQuote, ...prev]);
@@ -857,12 +940,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
-        addCustomAuditLog(quoteId, 'Sales Manager (M. Shah)', 'Approved Quotation Terms', { comments });
+        addCustomAuditLog(quoteId, 'Sales Manager (M. Shah)', 'Approved Quotation Terms & Sent to Customer', { comments });
         const updated: Quote = {
           ...q,
-          status: 'Manager Approved',
-          approvalStage: 'Sales Manager',
-          approvalAssignedTo: 'P. Mehta (Sales Rep)',
+          status: 'Pending Customer',
+          approvalStage: 'None',
+          approvalAssignedTo: 'Customer',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
@@ -934,18 +1017,85 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // Customer Portal Counter Offer
+  // Customer Portal Counter Offer (Stores request WITHOUT overwriting original quote terms)
   const customerCounterOffer = (
     quoteId: string,
     notes: string,
     lineDiscounts: Record<string, number>,
-    requestedDelivery?: string
+    requestedDelivery?: string,
+    lineComments?: Record<string, string>
   ) => {
     setQuotes((prev) =>
       prev.map((q) => {
         if (q.id !== quoteId) return q;
 
+        const lineRequests: CustomerRevisionRequestLine[] = q.lines.map((l) => ({
+          lineId: l.id,
+          productId: l.productId,
+          productName: l.productName,
+          originalDiscountPercent: l.discountPercent,
+          requestedDiscountPercent:
+            lineDiscounts[l.id] !== undefined ? lineDiscounts[l.id] : l.discountPercent,
+          unitListPrice: l.unitListPrice,
+          comment: lineComments?.[l.id] || '',
+        }));
+
+        const revRequest: CustomerRevisionRequest = {
+          requestedAt: new Date().toISOString(),
+          message: notes,
+          requestedDeliveryDate: requestedDelivery || q.requestedDeliveryDate,
+          lineRequests,
+        };
+
+        const newVersion: QuoteRevisionVersion = {
+          version: (q.revisionHistory?.length || 0) + 1,
+          updatedBy: `Customer (${q.companyName})`,
+          timestamp: new Date().toISOString(),
+          promisedDeliveryDate: q.promisedDeliveryDate,
+          requestedDeliveryDate: requestedDelivery || q.requestedDeliveryDate,
+          discountSummary: `Customer requested revision on ${lineRequests.filter(r => r.requestedDiscountPercent !== r.originalDiscountPercent).length} lines & delivery ${requestedDelivery || 'schedule'}`,
+          status: 'Customer Revision Requested',
+          notes,
+        };
+
+        const updatedQuote: Quote = {
+          ...q,
+          status: 'Customer Revision Requested',
+          approvalStage: 'None',
+          approvalAssignedTo: `${q.salesRep} (Sales Rep)`,
+          customerCounterNotes: notes,
+          requestedDeliveryDate: requestedDelivery || q.requestedDeliveryDate,
+          customerRevisionRequest: revRequest,
+          revisionHistory: [...(q.revisionHistory || []), newVersion],
+        };
+
+        addCustomAuditLog(
+          quoteId,
+          `Customer (${q.companyName})`,
+          'Submitted Commercial Term Revision Request',
+          {
+            notes,
+            requestedDelivery: requestedDelivery || q.promisedDeliveryDate,
+            lineRequestsCount: lineRequests.length,
+          }
+        );
+
+        broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
+        return updatedQuote;
+      })
+    );
+  };
+
+  // Sales Rep Accepts Customer Revision Request
+  const acceptCustomerRevision = (quoteId: string) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId || !q.customerRevisionRequest) return q;
+
+        const req = q.customerRevisionRequest;
         const updatedLines = q.lines.map((l) => {
-          const newDiscount = lineDiscounts[l.id] !== undefined ? lineDiscounts[l.id] : l.discountPercent;
+          const lineReq = req.lineRequests.find((r) => r.lineId === l.id);
+          const newDiscount = lineReq ? lineReq.requestedDiscountPercent : l.discountPercent;
           const metrics = calculateLineMetrics(
             l.quantity,
             l.unitListPrice,
@@ -956,7 +1106,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return {
             ...l,
             discountPercent: newDiscount,
-            counterDiscountPercent: newDiscount,
             netAmount: metrics.netAmount,
             marginPercent: metrics.marginPercent,
             isOverLimit: metrics.isOverLimit,
@@ -964,33 +1113,134 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           };
         });
 
+        const newPromisedDelivery = req.requestedDeliveryDate || q.promisedDeliveryDate;
+
         const recomputed = recomputeQuote({
           ...q,
           lines: updatedLines,
-          customerCounterNotes: notes,
-          customerRequestedDelivery: requestedDelivery,
+          promisedDeliveryDate: newPromisedDelivery,
+          customerRevisionRequest: undefined,
         });
+
+        const hasOverLimitLine = updatedLines.some((l) => l.isOverLimit);
+        let nextStatus: QuoteStatus = 'Pending Customer';
+        let nextStage: 'None' | 'Sales Manager' | 'Finance' = 'None';
+        let nextAssignee = 'Customer';
+
+        if (hasOverLimitLine || recomputed.riskLevel === 'HIGH' || recomputed.riskLevel === 'MEDIUM') {
+          nextStatus = 'Pending Manager';
+          nextStage = 'Sales Manager';
+          nextAssignee = 'M. Shah (Sales Manager)';
+        }
+
+        const newVersion: QuoteRevisionVersion = {
+          version: (q.revisionHistory?.length || 0) + 1,
+          updatedBy: `${q.salesRep} (Sales Rep)`,
+          timestamp: new Date().toISOString(),
+          promisedDeliveryDate: newPromisedDelivery,
+          discountSummary: `Accepted customer requested terms. New promised delivery: ${newPromisedDelivery}`,
+          status: nextStatus,
+          notes: 'Accepted customer revision request and re-evaluated governance limits.',
+        };
 
         const updatedQuote: Quote = {
           ...recomputed,
-          status: 'Customer Revision Requested',
-          approvalStage: 'None',
-          approvalAssignedTo: 'P. Mehta (Sales Rep)',
+          status: nextStatus,
+          approvalStage: nextStage,
+          approvalAssignedTo: nextAssignee,
+          revisionHistory: [...(q.revisionHistory || []), newVersion],
         };
 
         addCustomAuditLog(
           quoteId,
-          `Customer (${q.companyName})`,
-          'Submitted Revision Request & Counter Terms via Portal',
+          `${q.salesRep} (Sales Rep)`,
+          'Accepted Customer Revision Request & Updated Commercial Terms',
           {
-            notes,
-            requestedDelivery,
+            newPromisedDelivery,
             newBlendedRisk: recomputed.blendedRiskScore,
+            status: nextStatus,
           }
         );
 
         broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
         return updatedQuote;
+      })
+    );
+  };
+
+  // Sales Rep Rejects Customer Revision Request
+  const rejectCustomerRevision = (quoteId: string, reason?: string) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+
+        const newVersion: QuoteRevisionVersion = {
+          version: (q.revisionHistory?.length || 0) + 1,
+          updatedBy: `${q.salesRep} (Sales Rep)`,
+          timestamp: new Date().toISOString(),
+          promisedDeliveryDate: q.promisedDeliveryDate,
+          discountSummary: 'Rejected customer revision request. Original commercial terms maintained.',
+          status: 'Pending Customer',
+          notes: reason || 'Declined counter terms. Original proposal stands.',
+        };
+
+        const updatedQuote: Quote = {
+          ...q,
+          status: 'Pending Customer',
+          approvalStage: 'None',
+          approvalAssignedTo: 'Customer',
+          customerRevisionRequest: undefined,
+          revisionHistory: [...(q.revisionHistory || []), newVersion],
+        };
+
+        addCustomAuditLog(quoteId, `${q.salesRep} (Sales Rep)`, 'Rejected Customer Revision Request', { reason });
+
+        broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
+        return updatedQuote;
+      })
+    );
+  };
+
+  // Update Customer Shipping Delivery Address
+  const updateDeliveryAddress = (quoteId: string, address: DeliveryAddress) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        const updated: Quote = { ...q, deliveryAddress: address, updatedAt: new Date().toISOString() };
+        addCustomAuditLog(quoteId, 'System / Rep', 'Updated Shipping Delivery Address', address);
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
+  // Update Promised Delivery Date
+  const updatePromisedDeliveryDate = (quoteId: string, date: string) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        const updated: Quote = { ...q, promisedDeliveryDate: date, updatedAt: new Date().toISOString() };
+        addCustomAuditLog(quoteId, `${q.salesRep} (Sales Rep)`, `Updated Promised Delivery Date to ${date}`);
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
+      })
+    );
+  };
+
+  // Advance Fulfillment Operational Stage
+  const advanceFulfillmentStage = (quoteId: string, nextStage: FulfillmentStage) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id !== quoteId) return q;
+        const updated: Quote = {
+          ...q,
+          fulfillmentStage: nextStage,
+          status: nextStage === 'Shipped' || nextStage === 'Delivered' ? 'Fulfillment' : q.status,
+          updatedAt: new Date().toISOString(),
+        };
+        addCustomAuditLog(quoteId, 'Fulfillment Operations', `Advanced Fulfillment Stage to ${nextStage}`);
+        broadcastSync('QUOTE_UPDATED', { quote: updated });
+        return updated;
       })
     );
   };
@@ -1001,27 +1251,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       prev.map((q) => {
         if (q.id !== quoteId) return q;
 
-        let nextStatus: Quote['status'] = 'Customer Approved';
-        let stage: Quote['approvalStage'] = 'None';
-        let assignedTo = 'Finance & Ops';
+        const hasOverLimitLines = q.lines.some((l) => l.isOverLimit);
+        // Low Risk or Under Limit discounts -> Automatically Approve Finance
+        const isCompliant = q.riskLevel === 'LOW' || !hasOverLimitLines;
 
-        if (q.riskLevel === 'HIGH') {
+        let nextStatus: Quote['status'] = 'Pending Finance';
+        let stage: Quote['approvalStage'] = 'Finance';
+        let assignedTo = 'R. Iyer (Finance)';
+
+        if (isCompliant) {
+          // Under limit / Low Risk -> Auto-approve Finance
+          nextStatus = 'Finance Approved';
+          stage = 'Fully Approved';
+          assignedTo = 'Auto-Approved by Finance Rules Engine';
+          addCustomAuditLog(
+            quoteId,
+            `Customer (${q.companyName})`,
+            'Accepted Commercial Terms (Low Risk & Compliant Discounts). Automatically Approved by Finance Rules Engine.'
+          );
+        } else {
+          // Over limit / High Risk -> Route to Finance Manager for manual review
           nextStatus = 'Pending Finance';
           stage = 'Finance';
           assignedTo = 'R. Iyer (Finance)';
           addCustomAuditLog(
             quoteId,
             `Customer (${q.companyName})`,
-            'Accepted Commercial Terms. High-Risk Quotation routed to Finance (R. Iyer) for final approval.'
-          );
-        } else {
-          nextStatus = 'Customer Approved';
-          stage = 'Fully Approved';
-          assignedTo = 'Finance & Ops (Fulfillment)';
-          addCustomAuditLog(
-            quoteId,
-            `Customer (${q.companyName})`,
-            'Accepted Terms & Confirmed Quotation via Portal. Advanced to Fulfillment.'
+            'Accepted Commercial Terms (Discount Over Limit). Routed to Finance Manager (R. Iyer) for manual approval.'
           );
         }
 
@@ -1030,7 +1286,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           status: nextStatus,
           approvalStage: stage,
           approvalAssignedTo: assignedTo,
+          fulfillmentStage: isCompliant ? 'Ready for Fulfillment' : q.fulfillmentStage,
+          fulfillmentBlockReason: isCompliant ? undefined : 'Pending Finance Manager Approval',
         };
+
+        if (isCompliant) {
+          const existingInvoice = invoices.find((inv) => inv.quoteId === quoteId);
+          if (!existingInvoice) {
+            const { invoice, subscriptions: newSubs } = generateHybridBilling(updated);
+            setInvoices((invs) => [invoice, ...invs]);
+            setSubscriptions((subs) => [...newSubs, ...subs]);
+          }
+        }
+
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
       })
@@ -1084,8 +1352,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return { invoiceId: invoice.id, isNew: true };
   };
 
-  // Record Invoice Payment
+  // Record Invoice Payment (Finance & Admin authorization required)
   const recordPayment = (invoiceId: string) => {
+    if (userRole === 'customer') {
+      alert('Action Unauthorized: Customer users are not authorized to alter invoice payment status. Settlement must be recorded by Finance or System Admin.');
+      return;
+    }
+
     setInvoices((prev) =>
       prev.map((inv) => {
         if (inv.id !== invoiceId) return inv;
@@ -1099,7 +1372,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           qList.map((q) => (q.id === inv.quoteId ? { ...q, status: 'Paid' } : q))
         );
 
-        addCustomAuditLog(inv.quoteId, 'Finance (R. Iyer)', `Payment Verified & Settled (₹${inv.totalAmount.toLocaleString('en-IN')})`);
+        addCustomAuditLog(inv.quoteId, `${currentUser?.name || 'Finance (R. Iyer)'}`, `Payment Verified & Settled (₹${inv.totalAmount.toLocaleString('en-IN')})`);
         return updatedInv;
       })
     );
@@ -1183,6 +1456,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addCompany,
         addProduct,
         updateProduct,
+        addWarehouse,
+        updateWarehouse,
+        updateInventoryStock,
         sendMessage,
         createNewQuote,
         updateQuoteLine,
@@ -1196,6 +1472,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         returnForRevision,
         rejectQuote,
         customerCounterOffer,
+        acceptCustomerRevision,
+        rejectCustomerRevision,
+        updateDeliveryAddress,
+        updatePromisedDeliveryDate,
+        advanceFulfillmentStage,
         customerAcceptQuote,
         acceptFulfillment,
         recordPayment,

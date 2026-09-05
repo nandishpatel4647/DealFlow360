@@ -8,6 +8,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { formatDateDisplay } from '../../logic/dateUtils';
 import { RiskBadge } from '../design-system/RiskBadge';
 import { StatusBadge } from '../design-system/StatusBadge';
 import { ExplainableRiskCard } from '../design-system/ExplainableRiskCard';
@@ -159,30 +160,34 @@ export const ApprovalsView: React.FC = () => {
         {/* Right 2 Cols: Selected Quote Risk Audit & Decision Actions */}
         {activeQuote ? (
           <div className="lg:col-span-2 space-y-4">
-            {/* Header Box */}
-            <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-bold text-slate-900 font-mono">{activeQuote.id}</span>
-                    <span className="text-sm text-slate-700 font-bold">
-                      — {activeQuote.companyName}
-                    </span>
-                    <StatusBadge status={activeQuote.status} />
+              {/* Header Box */}
+              <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-bold text-slate-900 font-mono">{activeQuote.id}</span>
+                      <span className="text-sm text-slate-700 font-bold">
+                        — {activeQuote.companyName}
+                      </span>
+                      <StatusBadge status={activeQuote.status} />
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                      Customer Tier: <span className="text-slate-900 font-bold">{activeQuote.tier}</span> • Reviewer:{' '}
+                      <span className="text-blue-700 font-bold">{activeQuote.approvalAssignedTo}</span>
+                    </p>
+                    <p className="text-xs text-slate-600 font-medium mt-1">
+                      Promised Delivery Date: <span className="font-bold text-blue-700 font-mono">{formatDateDisplay(activeQuote.promisedDeliveryDate || '15 October 2026')}</span> • Delivery Location:{' '}
+                      <span className="font-bold text-slate-800">{activeQuote.deliveryAddress ? `${activeQuote.deliveryAddress.city}, ${activeQuote.deliveryAddress.state}` : 'Ahmedabad, Gujarat'}</span>
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Customer Tier: <span className="text-slate-900 font-bold">{activeQuote.tier}</span> • Reviewer:{' '}
-                    <span className="text-blue-700 font-bold">{activeQuote.approvalAssignedTo}</span>
-                  </p>
-                </div>
 
-                <button
-                  onClick={() => setActiveView('builder')}
-                  className="px-3 py-1.5 rounded-md text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs self-start sm:self-auto"
-                >
-                  <FileText className="w-4 h-4 text-blue-600" /> Edit Quote
-                </button>
-              </div>
+                  <button
+                    onClick={() => setActiveView('builder')}
+                    className="px-3 py-1.5 rounded-md text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs self-start sm:self-auto"
+                  >
+                    <FileText className="w-4 h-4 text-blue-600" /> View / Edit Quote
+                  </button>
+                </div>
 
               {/* Action Decision Toolbar */}
               <div className="mt-4 p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">

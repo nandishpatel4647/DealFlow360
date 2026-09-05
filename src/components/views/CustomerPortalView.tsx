@@ -16,6 +16,7 @@ import {
   Info,
   Clock,
   XCircle,
+  RotateCcw,
   FileCheck,
   Printer,
   Download,
@@ -27,6 +28,7 @@ import { BrandLogo } from '../common/BrandLogo';
 import { useAppStore } from '../../store/useAppStore';
 import { StatusBadge } from '../design-system/StatusBadge';
 import { Invoice } from '../../types';
+import { formatDateDisplay } from '../../logic/dateUtils';
 
 export const CustomerPortalView: React.FC = () => {
   const {
@@ -35,6 +37,8 @@ export const CustomerPortalView: React.FC = () => {
     invoices,
     customerPortalToken,
     setCustomerPortalToken,
+    selectedQuoteId,
+    setSelectedQuoteId,
     customerCounterOffer,
     customerAcceptQuote,
     setActiveView,
@@ -60,11 +64,44 @@ export const CustomerPortalView: React.FC = () => {
   const [newMessageText, setNewMessageText] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
+  const [manualQuoteId, setManualQuoteId] = useState<string | null>(null);
+
+  // Check if selectedQuoteId matches a quote in store
+  const selectedQuoteInStore = quotes.find((q) => q.id === selectedQuoteId);
+
+  // Resolve matchedCompany dynamically from selectedQuoteInStore, portalToken, or fallback
   const matchedCompany =
-    companies.find((c) => c.portalToken === customerPortalToken) || companies[0];
+    (selectedQuoteInStore &&
+      companies.find(
+        (c) =>
+          c.id === selectedQuoteInStore.companyId ||
+          c.name.toLowerCase() === selectedQuoteInStore.companyName.toLowerCase()
+      )) ||
+    companies.find((c) => c.portalToken === customerPortalToken) ||
+    companies[0];
+
+  const customerQuotes = quotes.filter(
+    (q) =>
+      q.companyId === matchedCompany.id ||
+      q.companyName.toLowerCase().includes(matchedCompany.name.toLowerCase())
+  );
+
+  const manuallySelectedQuote = manualQuoteId ? customerQuotes.find((q) => q.id === manualQuoteId) : null;
+  const selectedQuoteForCustomer = customerQuotes.find((q) => q.id === selectedQuoteId) || selectedQuoteInStore;
+  const pendingCustomerQuote = customerQuotes.find(
+    (q) => q.status === 'Pending Customer' || q.status === 'Customer Revision Requested' || q.status === 'Pending Finance'
+  );
+
+  // Active Quote Resolution:
+  // 1. Manually selected quote from dropdown
+  // 2. Selected quote in store (if matching customer)
+  // 3. Pending customer quote awaiting review
+  // 4. Fallback to latest customer quote
   const activeQuote =
-    quotes.find((q) => q.companyId === matchedCompany.id) ||
-    quotes.find((q) => q.id === 'Q-1040') ||
+    manuallySelectedQuote ||
+    selectedQuoteForCustomer ||
+    pendingCustomerQuote ||
+    customerQuotes[0] ||
     quotes[0];
 
   // STRICT SECURITY FILTER: ONLY SHOW THIS PARTICULAR CUSTOMER'S INVOICES
@@ -82,8 +119,6 @@ export const CustomerPortalView: React.FC = () => {
 
   // Workflow Status Checks for Active Quote
   const isConfirmed = [
-    'Customer Approved',
-    'Pending Finance',
     'Finance Approved',
     'Fully Approved',
     'Confirmed',
@@ -91,6 +126,9 @@ export const CustomerPortalView: React.FC = () => {
     'Invoiced',
     'Paid',
   ].includes(activeQuote?.status || '');
+
+  const isPendingFinance =
+    activeQuote?.status === 'Pending Finance' || activeQuote?.status === 'Customer Approved';
 
   const isAwaitingRep = activeQuote?.status === 'Customer Revision Requested';
   const isRejected = [
@@ -100,8 +138,19 @@ export const CustomerPortalView: React.FC = () => {
   ].includes(activeQuote?.status || '');
   const isPendingManager = activeQuote?.status === 'Pending Manager';
 
+  const lastRevision = activeQuote?.revisionHistory && activeQuote.revisionHistory.length > 0
+    ? activeQuote.revisionHistory[activeQuote.revisionHistory.length - 1]
+    : null;
+
+  const wasRevisionRejectedByRep =
+    activeQuote?.status === 'Pending Customer' &&
+    lastRevision &&
+    (lastRevision.discountSummary?.toLowerCase().includes('rejected') ||
+     lastRevision.notes?.toLowerCase().includes('declined') ||
+     lastRevision.notes?.toLowerCase().includes('rejected'));
+
   // Can the customer interact with input fields & buttons?
-  const canInteract = !isConfirmed && !isAwaitingRep && !isRejected && !isPendingManager;
+  const canInteract = !isConfirmed && !isPendingFinance && !isAwaitingRep && !isRejected && !isPendingManager;
 
   // Check if customer has made actual changes or typed comments
   const hasUserChanges =
@@ -320,14 +369,14 @@ export const CustomerPortalView: React.FC = () => {
         {activeTab === 'quotation' && (
           <div className="space-y-6">
             {/* Title & Subheader Card */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-3">
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
                 <div>
                   <h1 className="text-xl font-extrabold tracking-tight text-slate-900 font-sans">
-                    Customer Portal Negotiation Screen
+                    Quotation Summary & Commercial Review
                   </h1>
                   <p className="text-xs text-slate-500 font-medium mt-1">
-                    Customer reviews and negotiates the quote directly, no email needed
+                    Review your official proposal, request commercial revisions, or confirm quotation terms.
                   </p>
                 </div>
 
@@ -337,40 +386,176 @@ export const CustomerPortalView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Quote Reference Details */}
-              <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 font-medium pt-1">
+              {/* QUOTATION SUMMARY BOX */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                 <div>
-                  Quotation ID: <span className="font-bold text-slate-900 font-mono">{activeQuote.id}</span> • Customer:{' '}
-                  <span className="font-bold text-slate-900">{activeQuote.companyName}</span>
+                  <span className="text-[11px] text-slate-500 font-semibold block uppercase">Quotation</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-mono font-bold text-slate-900 text-sm">{activeQuote.id}</span>
+                    {customerQuotes.length > 1 && (
+                      <select
+                        value={activeQuote.id}
+                        onChange={(e) => {
+                          setManualQuoteId(e.target.value);
+                          setSelectedQuoteId(e.target.value);
+                        }}
+                        className="px-2 py-0.5 rounded bg-white border border-slate-300 font-sans font-bold text-slate-800 text-xs outline-none cursor-pointer hover:border-blue-500 shadow-2xs"
+                      >
+                        {customerQuotes.map((q) => (
+                          <option key={q.id} value={q.id}>
+                            {q.id} ({q.status})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 </div>
                 <div>
-                  Assigned Sales Rep: <span className="font-bold text-slate-900">{activeQuote.salesRep}</span> • Payment Terms:{' '}
-                  <span className="font-bold text-slate-900">Net 30 Days</span>
+                  <span className="text-[11px] text-slate-500 font-semibold block uppercase">Customer</span>
+                  <span className="font-bold text-slate-900 text-sm">{activeQuote.companyName}</span>
                 </div>
-              </div>
-            </div>
-
-            {/* STATUS WORKFLOW BANNER */}
-            {isConfirmed && (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-900 flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2.5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                  <span>
-                    <strong>Quotation Confirmed & Accepted!</strong> Your contract terms have been confirmed and the order is progressing to fulfillment & invoicing.
+                <div>
+                  <span className="text-[11px] text-slate-500 font-semibold block uppercase">Original Delivery Date</span>
+                  <span className="font-bold text-blue-700 text-sm flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    {formatDateDisplay(activeQuote.promisedDeliveryDate || '15 October 2026')}
                   </span>
                 </div>
-                <span className="px-3 py-1 rounded bg-emerald-600 text-white font-extrabold text-[11px] shadow-2xs">
-                  ✓ Confirmed
+                <div>
+                  <span className="text-[11px] text-slate-500 font-semibold block uppercase">Sales Representative</span>
+                  <span className="font-bold text-slate-900 text-sm">{activeQuote.salesRep}</span>
+                </div>
+              </div>
+
+              {/* Delivery Location Card */}
+              {activeQuote.deliveryAddress && (
+                <div className="p-3.5 rounded-lg bg-blue-50/60 border border-blue-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <Building className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-900 block">
+                        Delivery Address: {activeQuote.deliveryAddress.addressLine1}, {activeQuote.deliveryAddress.city}, {activeQuote.deliveryAddress.state} ({activeQuote.deliveryAddress.postalCode})
+                      </span>
+                      <span className="text-slate-600 text-[11px]">
+                        Contact: {activeQuote.deliveryAddress.contactName} • Phone: {activeQuote.deliveryAddress.contactPhone}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* STATUS WORKFLOW BANNERS */}
+
+            {/* 1. SALES REP DECLINED REVISION REQUEST BANNER & CHOICES */}
+            {wasRevisionRejectedByRep && (
+              <div className="p-5 rounded-xl bg-rose-50 border-2 border-rose-300 text-xs text-rose-900 space-y-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <XCircle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-extrabold text-rose-950 uppercase tracking-wide">
+                      Sales Representative Declined Revision Request
+                    </h3>
+                    <p className="text-xs text-rose-800 font-medium">
+                      Sales Rep Message: <span className="font-bold text-rose-950 italic">"{lastRevision?.notes || 'Declined counter terms. Original proposal stands.'}"</span>
+                    </p>
+                    <p className="text-xs text-slate-700 font-medium mt-1">
+                      The sales representative has maintained the current commercial terms. Please review your choices below to proceed:
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-rose-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <button
+                    onClick={handleConfirmQuotation}
+                    className="px-4 py-2.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-white" /> Accept Current Terms & Proceed Order
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setGeneralNotes('Resubmitting updated commercial revision request.');
+                      const el = document.getElementById('customer-revision-form');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="px-4 py-2.5 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4 text-white" /> Send Request Again
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 1.5 PENDING CUSTOMER REVIEW BANNER */}
+            {activeQuote.status === 'Pending Customer' && !wasRevisionRejectedByRep && (
+              <div className="p-4 rounded-xl bg-blue-50 border-2 border-blue-300 text-xs text-blue-950 flex items-center justify-between shadow-2xs">
+                <div className="flex items-start gap-2.5">
+                  <Clock className="w-5 h-5 text-[#0176D3] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-extrabold text-blue-950 block">
+                      Quotation Ready for Commercial Review
+                    </span>
+                    <span className="text-blue-800 font-medium block mt-0.5">
+                      Please review the official commercial offer below. You may accept the quotation terms or submit a revision request.
+                    </span>
+                  </div>
+                </div>
+                <span className="px-3 py-1.5 rounded bg-[#0176D3] text-white font-extrabold text-[11px] shrink-0 shadow-2xs">
+                  📋 Pending Your Review
                 </span>
               </div>
             )}
 
+            {/* 2. CUSTOMER ACCEPTED — PENDING FINANCE WAIT BANNER */}
+            {isPendingFinance && (
+              <div className="p-4 rounded-xl bg-amber-50 border-2 border-amber-300 text-xs font-bold text-amber-900 flex items-center justify-between shadow-2xs">
+                <div className="flex items-start gap-2.5">
+                  <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+                  <div>
+                    <span className="text-sm font-extrabold text-amber-950 block">
+                      Order Submitted — Awaiting Finance Manager Approval
+                    </span>
+                    <span className="text-amber-800 font-medium block mt-0.5">
+                      Please wait, we will update you soon. Your quotation acceptance has been submitted for Finance audit & final approval.
+                    </span>
+                  </div>
+                </div>
+                <span className="px-3 py-1.5 rounded bg-amber-600 text-white font-extrabold text-[11px] shrink-0 shadow-2xs">
+                  ⏳ Wait, We Will Update Soon
+                </span>
+              </div>
+            )}
+
+            {/* 3. CONFIRMED ORDER & FULFILLMENT / INVOICED BANNER */}
+            {isConfirmed && (
+              <div className="p-5 rounded-xl bg-emerald-50 border-2 border-emerald-400 text-xs text-emerald-950 space-y-2 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+                    <div>
+                      <h3 className="text-sm font-extrabold text-emerald-950 uppercase tracking-wide">
+                        Order Confirmed & Fulfillment Active!
+                      </h3>
+                      <p className="text-xs text-emerald-800 font-medium mt-0.5">
+                        Your order has been officially confirmed by Finance. Invoice has been generated and stock allocation is complete.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-extrabold text-xs shadow-2xs">
+                    ✓ Order Confirmed
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* 4. AWAITING SALES REP REVISION RESPONSE BANNER */}
             {isAwaitingRep && (
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-900 flex items-center justify-between shadow-2xs">
                 <div className="flex items-center gap-2.5">
                   <Clock className="w-5 h-5 text-amber-600 shrink-0 animate-pulse" />
                   <span>
-                    <strong>Revision Request Submitted!</strong> Awaiting response from Sales Representative ({activeQuote.salesRep}). Once Sales updates the proposal, you will be able to review or confirm terms.
+                    <strong>Revision Request Submitted!</strong> Awaiting response from Sales Representative ({activeQuote.salesRep}). Once Sales reviews your request, you will be notified.
                   </span>
                 </div>
                 <span className="px-3 py-1 rounded bg-amber-600 text-white font-extrabold text-[11px] shadow-2xs">
@@ -388,14 +573,14 @@ export const CustomerPortalView: React.FC = () => {
               </div>
             )}
 
-            {/* Line-item Customer Comment / Feedback Table */}
+            {/* ORIGINAL COMMERCIAL OFFER TABLE */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Line Item Commercial Review & Specific Line Feedback
+                  Original Commercial Offer
                 </span>
-                <span className="text-[11px] text-[#0176D3] font-semibold">
-                  Direct line item comments & counter discount proposals
+                <span className="text-[11px] text-slate-500 font-semibold">
+                  Values offered by Sales Representative ({activeQuote.salesRep})
                 </span>
               </div>
 
@@ -403,118 +588,38 @@ export const CustomerPortalView: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                     <tr>
-                      <th className="p-3.5">Line</th>
-                      <th className="p-3.5">List Price</th>
-                      <th className="p-3.5">Offered Disc</th>
-                      <th className="p-3.5 w-32">Counter Disc %</th>
-                      <th className="p-3.5">Customer Comment / Feedback</th>
-                      <th className="p-3.5 text-right">Net Price</th>
+                      <th className="p-3.5">Product / Service</th>
+                      <th className="p-3.5 text-center">Quantity</th>
+                      <th className="p-3.5">Original Discount</th>
+                      <th className="p-3.5 font-mono">List Price</th>
+                      <th className="p-3.5 text-right font-mono">Original Net Amount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 font-medium">
-                    {activeQuote.lines.map((l) => {
-                      const currentCounter =
-                        counterDiscounts[l.id] !== undefined
-                          ? counterDiscounts[l.id]
-                          : l.counterDiscountPercent || l.discountPercent;
-
-                      return (
-                        <tr key={l.id} className="hover:bg-slate-50/60 transition">
-                          <td className="p-3.5">
-                            <span className="text-slate-900 font-bold block">{l.productName}</span>
-                            <span className="text-[11px] text-slate-500 capitalize">
-                              {l.category} {l.isRecurring && '• Monthly SaaS'}
-                            </span>
-                          </td>
-
-                          <td className="p-3.5 font-mono text-slate-700">
-                            ₹{l.unitListPrice.toLocaleString('en-IN')}
-                          </td>
-
-                          <td className="p-3.5 font-semibold text-slate-800">{l.discountPercent}%</td>
-
-                          {/* Counter Discount % Input */}
-                          <td className="p-3.5">
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="number"
-                                min="0"
-                                max="50"
-                                disabled={!canInteract}
-                                value={currentCounter}
-                                onChange={(e) =>
-                                  handleLineDiscountChange(l.id, parseFloat(e.target.value) || 0)
-                                }
-                                className="w-16 px-2 py-1 rounded bg-slate-50 border border-slate-300 text-slate-900 font-bold text-xs outline-none focus:border-[#0176D3] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-                              />
-                              <span className="text-slate-500 font-bold">%</span>
-                            </div>
-                          </td>
-
-                          {/* Customer Comment / Feedback Input */}
-                          <td className="p-3.5">
-                            <input
-                              type="text"
-                              disabled={!canInteract}
-                              placeholder={canInteract ? "e.g. Can this be 15% off instead of 10%?" : "Comments locked"}
-                              value={lineComments[l.id] || ''}
-                              onChange={(e) => handleLineCommentChange(l.id, e.target.value)}
-                              className="w-full px-3 py-1.5 rounded bg-slate-50 border border-slate-300 text-slate-900 text-xs font-normal outline-none focus:border-[#0176D3] focus:bg-white placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-                            />
-                          </td>
-
-                          <td className="p-3.5 text-right font-mono font-bold text-slate-900">
-                            ₹{l.netAmount.toLocaleString('en-IN')}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {activeQuote.lines.map((l) => (
+                      <tr key={l.id} className="hover:bg-slate-50/60 transition">
+                        <td className="p-3.5">
+                          <span className="text-slate-900 font-bold block">{l.productName}</span>
+                          <span className="text-[11px] text-slate-500 capitalize">
+                            {l.category} {l.isRecurring && '• Monthly SaaS'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-center font-bold text-slate-800">{l.quantity}</td>
+                        <td className="p-3.5 font-bold text-slate-900">{l.discountPercent}%</td>
+                        <td className="p-3.5 font-mono text-slate-700">₹{l.unitListPrice.toLocaleString('en-IN')}</td>
+                        <td className="p-3.5 text-right font-mono font-bold text-slate-900">
+                          ₹{l.netAmount.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
-            </div>
 
-            {/* Counter-Offer Form: Counter Discount %, Requested Delivery Date & General Notes */}
-            <form onSubmit={handleSubmitCounterRequest} className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                    Counter Discount % & Overall Commercial Remarks
-                  </label>
-                  <textarea
-                    rows={3}
-                    disabled={!canInteract}
-                    value={generalNotes}
-                    onChange={(e) => setGeneralNotes(e.target.value)}
-                    placeholder={canInteract ? "Enter general remarks regarding your requested commercial revision..." : "Remarks locked for current status"}
-                    className="w-full p-3 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-900 font-medium outline-none focus:border-[#0176D3] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
-                    Requested Delivery Date
-                  </label>
-                  <div className="relative">
-                    <Calendar className="w-4 h-4 absolute left-3 top-3 text-[#0176D3]" />
-                    <input
-                      type="date"
-                      disabled={!canInteract}
-                      value={requestedDelivery}
-                      onChange={(e) => setRequestedDelivery(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-900 font-bold outline-none focus:border-[#0176D3] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-2 font-medium">
-                    Propose target delivery schedule for physical hardware dispatch and setup.
-                  </p>
-                </div>
-              </div>
-
-              {/* Commercial Total Summary */}
+              {/* Total Summary */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono">
                 <div className="text-xs text-slate-600">
-                  Catalog Value:{' '}
+                  Catalog Total:{' '}
                   <span className="line-through text-slate-400">
                     ₹{activeQuote.totalListAmount.toLocaleString('en-IN')}
                   </span>
@@ -526,83 +631,177 @@ export const CustomerPortalView: React.FC = () => {
                   </span>
                 </div>
               </div>
+            </div>
 
-              {/* Action Buttons: Submit Request & Confirm Quotation */}
-              <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="text-xs text-slate-500 font-medium">
-                  {canInteract ? (
-                    hasUserChanges ? (
-                      <span className="text-blue-700 font-bold">
-                        Changes detected. You can submit your revision request or confirm terms.
-                      </span>
-                    ) : (
-                      <span>
-                        Modify discount %, add line feedback, or enter remarks to enable <strong>Submit Request</strong>. Or click <strong>Confirm Quotation</strong> to accept terms.
-                      </span>
-                    )
-                  ) : (
-                    <span>Quotation actions locked for current workflow status ({activeQuote.status}).</span>
-                  )}
+            {/* CUSTOMER REVISION REQUEST FORM */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    Customer Revision Request Form
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Propose requested discounts or a revised delivery date. This submits a formal request to your Sales Rep without altering original quote records directly.
+                  </p>
                 </div>
+                {isAwaitingRep && (
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    Request Pending Response
+                  </span>
+                )}
+              </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  {/* Submit Request Button */}
-                  <button
-                    type="submit"
-                    disabled={!canInteract || !hasUserChanges}
-                    title={
-                      !canInteract
-                        ? 'Request submission disabled for current status'
-                        : !hasUserChanges
-                        ? 'Modify discount %, add line feedback, or enter notes to submit a request'
-                        : 'Submit revision request'
-                    }
-                    className={`px-6 py-3 rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-2xs ${
-                      canInteract && hasUserChanges
-                        ? 'bg-slate-900 hover:bg-slate-800 text-white cursor-pointer'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                    }`}
-                  >
-                    {isAwaitingRep ? (
-                      <>
-                        <Clock className="w-4 h-4 text-amber-500 animate-pulse" /> ⏳ Awaiting Sales Rep Response...
-                      </>
-                    ) : isConfirmed ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Quotation Confirmed
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 text-blue-400" /> Submit Request
-                      </>
-                    )}
-                  </button>
+              {/* Requested Line Discounts */}
+              <div className="space-y-3">
+                <span className="text-xs font-bold text-slate-700 block">Requested Discount Changes (Line Item Level)</span>
+                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[11px]">
+                      <tr>
+                        <th className="p-3">Line</th>
+                        <th className="p-3">Current Offered Discount</th>
+                        <th className="p-3 w-36">Requested Discount %</th>
+                        <th className="p-3">Optional Line Comment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-medium">
+                      {activeQuote.lines.map((l) => {
+                        const currentCounter =
+                          counterDiscounts[l.id] !== undefined
+                            ? counterDiscounts[l.id]
+                            : l.discountPercent;
 
-                  {/* Confirm Quotation Button */}
-                  <button
-                    type="button"
-                    disabled={!canInteract}
-                    onClick={handleConfirmQuotation}
-                    className={`px-6 py-3 rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-xs ${
-                      isConfirmed
-                        ? 'bg-emerald-700 text-white cursor-not-allowed opacity-90'
-                        : canInteract
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> {isConfirmed ? '✓ Quotation Confirmed' : 'Confirm Quotation'}
-                  </button>
+                        return (
+                          <tr key={l.id}>
+                            <td className="p-3 font-bold text-slate-900">{l.productName}</td>
+                            <td className="p-3 text-slate-700 font-semibold">{l.discountPercent}%</td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="50"
+                                  disabled={!canInteract}
+                                  value={currentCounter}
+                                  onChange={(e) =>
+                                    handleLineDiscountChange(l.id, parseFloat(e.target.value) || 0)
+                                  }
+                                  className="w-16 px-2 py-1 rounded bg-slate-50 border border-slate-300 text-slate-900 font-bold text-xs outline-none focus:border-[#0176D3] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                                />
+                                <span className="text-slate-500 font-bold">%</span>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                disabled={!canInteract}
+                                placeholder={canInteract ? "e.g. Requesting 15% discount for long term engagement" : "Locked"}
+                                value={lineComments[l.id] || ''}
+                                onChange={(e) => handleLineCommentChange(l.id, e.target.value)}
+                                className="w-full px-3 py-1 rounded bg-slate-50 border border-slate-300 text-slate-900 text-xs font-normal outline-none focus:border-[#0176D3] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            </form>
 
-            {/* Governance Warning Box */}
-            <div className="p-4 rounded-xl bg-[#FFF4E5] border border-[#FFD599] text-xs font-bold text-[#B76E00] flex items-center gap-2.5 shadow-2xs">
-              <Info className="w-4 h-4 text-[#B76E00] shrink-0" />
-              <span>
-                If final terms exceed thresholds, the quote automatically re-enters approval.
-              </span>
+              {/* Message & Requested Delivery Date */}
+              <form id="customer-revision-form" onSubmit={handleSubmitCounterRequest} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                      Reason / Message *
+                    </label>
+                    <textarea
+                      rows={3}
+                      disabled={!canInteract}
+                      value={generalNotes}
+                      onChange={(e) => setGeneralNotes(e.target.value)}
+                      placeholder={canInteract ? "Please review the requested discount and revised delivery schedule..." : "Remarks locked for current status"}
+                      className="w-full p-3 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-900 font-medium outline-none focus:border-[#0176D3] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+                      Requested Delivery Date
+                    </label>
+                    <div className="relative">
+                      <Calendar className="w-4 h-4 absolute left-3 top-3 text-[#0176D3]" />
+                      <input
+                        type="date"
+                        disabled={!canInteract}
+                        value={requestedDelivery}
+                        onChange={(e) => setRequestedDelivery(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-900 font-bold outline-none focus:border-[#0176D3] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2 font-medium">
+                      Original Promised Delivery: <span className="font-bold text-slate-700">{formatDateDisplay(activeQuote.promisedDeliveryDate || '15 October 2026')}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Main Actions Bar: Accept Quotation & Request Revision */}
+                <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="text-xs text-slate-500 font-medium">
+                    {canInteract ? (
+                      hasUserChanges ? (
+                        <span className="text-blue-700 font-bold">
+                          Changes specified. Click <strong>[Submit Revision Request]</strong> to send to Sales Rep.
+                        </span>
+                      ) : (
+                        <span>
+                          Modify discount %, requested date, or message to submit a revision request. Or click <strong>[Accept Quotation]</strong>.
+                        </span>
+                      )
+                    ) : (
+                      <span>Quotation actions locked for current workflow status ({activeQuote.status}).</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Accept Quotation Button */}
+                    <button
+                      type="button"
+                      onClick={handleConfirmQuotation}
+                      disabled={!canInteract}
+                      className={`px-5 py-2.5 rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-2xs ${
+                        canInteract
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-white" /> Accept Quotation
+                    </button>
+
+                    {/* Request Revision Button */}
+                    <button
+                      type="submit"
+                      disabled={!canInteract || !hasUserChanges}
+                      className={`px-5 py-2.5 rounded-lg text-xs font-bold transition flex items-center gap-2 shadow-2xs ${
+                        canInteract && hasUserChanges
+                          ? 'bg-slate-900 hover:bg-slate-800 text-white cursor-pointer'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                      }`}
+                    >
+                      {isAwaitingRep ? (
+                        <>
+                          <Clock className="w-4 h-4 text-amber-500 animate-pulse" /> ⏳ Request Pending Response
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 text-blue-400" /> Request Revision
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
           </div>
         )}
@@ -902,7 +1101,10 @@ export const CustomerPortalView: React.FC = () => {
                         </div>
 
                         <button
-                          onClick={() => setActiveTab('quotation')}
+                          onClick={() => {
+                            setSelectedQuoteId(q.id);
+                            setActiveTab('quotation');
+                          }}
                           className="px-3 py-1.5 rounded bg-white hover:bg-slate-100 text-[#0176D3] border border-slate-300 font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
                         >
                           Open Review <ChevronRight className="w-3.5 h-3.5" />
@@ -1064,15 +1266,9 @@ export const CustomerPortalView: React.FC = () => {
                 </div>
 
                 {selectedInvoice.status !== 'Paid' && (
-                  <button
-                    onClick={() => {
-                      recordPayment(selectedInvoice.id);
-                      setSelectedInvoice((prev) => prev ? { ...prev, status: 'Paid', paidAt: new Date().toISOString() } : null);
-                    }}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition shadow-2xs flex items-center gap-1 no-print"
-                  >
-                    <PaymentIcon className="w-3.5 h-3.5" /> Pay Now / Settle
-                  </button>
+                  <span className="text-[11px] text-slate-500 font-medium italic">
+                    * Payment settlement verified & recorded by Finance / System Administrator
+                  </span>
                 )}
               </div>
             </div>

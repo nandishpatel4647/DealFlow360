@@ -18,7 +18,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import { CustomerTierType, ProductCategoryType, UserRole, Company, Product } from '../../types';
+import { CustomerTierType, ProductCategoryType, UserRole, Company, Product, Warehouse } from '../../types';
 import { DemoUser } from '../../auth/demoUsers';
 
 export const AdminConfigView: React.FC = () => {
@@ -33,11 +33,14 @@ export const AdminConfigView: React.FC = () => {
     addProduct,
     warehouses,
     inventory,
+    addWarehouse,
+    updateWarehouse,
+    updateInventoryStock,
     loginAsCustomer,
     setActiveView,
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'customers' | 'products' | 'governance'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'customers' | 'products' | 'warehouses' | 'governance'>('users');
 
   // Governance Matrix State
   const [tierCeilings, setTierCeilings] = useState(configPolicy.tierCeilings);
@@ -50,6 +53,22 @@ export const AdminConfigView: React.FC = () => {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isAddWarehouseOpen, setIsAddWarehouseOpen] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
+  const [editingStock, setEditingStock] = useState<{
+    warehouseId: string;
+    warehouseName: string;
+    productId: string;
+    productName: string;
+    currentStock: number;
+  } | null>(null);
+  const [newStockVal, setNewStockVal] = useState<number>(0);
+
+  // Warehouse Form State
+  const [whName, setWhName] = useState('');
+  const [whLocation, setWhLocation] = useState('');
+  const [whFreightBase, setWhFreightBase] = useState(1500);
+  const [whWeightMult, setWhWeightMult] = useState(250);
 
   // User Form State
   const [userName, setUserName] = useState('');
@@ -207,6 +226,14 @@ export const AdminConfigView: React.FC = () => {
               <Package className="w-4 h-4" /> + Add Catalog Product
             </button>
           )}
+          {activeTab === 'warehouses' && (
+            <button
+              onClick={() => setIsAddWarehouseOpen(true)}
+              className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <WarehouseIcon className="w-4 h-4" /> + Add New Warehouse
+            </button>
+          )}
         </div>
       </div>
 
@@ -220,10 +247,10 @@ export const AdminConfigView: React.FC = () => {
       )}
 
       {/* Tabs Navigation */}
-      <div className="border-b border-slate-200 flex items-center gap-2 bg-white px-4 pt-3 rounded-t-xl">
+      <div className="border-b border-slate-200 flex items-center gap-2 bg-white px-4 pt-3 rounded-t-xl overflow-x-auto">
         <button
           onClick={() => setActiveTab('users')}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer ${
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'users'
               ? 'border-[#0176D3] text-[#0176D3]'
               : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -234,7 +261,7 @@ export const AdminConfigView: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('customers')}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer ${
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'customers'
               ? 'border-[#0176D3] text-[#0176D3]'
               : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -245,7 +272,7 @@ export const AdminConfigView: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('products')}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer ${
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'products'
               ? 'border-[#0176D3] text-[#0176D3]'
               : 'border-transparent text-slate-600 hover:text-slate-900'
@@ -255,14 +282,25 @@ export const AdminConfigView: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('warehouses')}
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+            activeTab === 'warehouses'
+              ? 'border-[#0176D3] text-[#0176D3]'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <WarehouseIcon className="w-4 h-4" /> Warehouses & Live Stock ({warehouses.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('governance')}
-          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer ${
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
             activeTab === 'governance'
               ? 'border-[#0176D3] text-[#0176D3]'
               : 'border-transparent text-slate-600 hover:text-slate-900'
           }`}
         >
-          <ShieldAlert className="w-4 h-4" /> CPQ Governance & Warehouses
+          <ShieldAlert className="w-4 h-4" /> CPQ Governance Engine
         </button>
       </div>
 
@@ -489,7 +527,106 @@ export const AdminConfigView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 4: GOVERNANCE & APPROVAL CHAINS (Blueprint Page 18) */}
+      {/* TAB 4: WAREHOUSES & LIVE STOCK MANAGEMENT */}
+      {activeTab === 'warehouses' && (
+        <div className="bg-white rounded-b-xl border border-t-0 border-slate-200 p-6 space-y-6 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <WarehouseIcon className="w-5 h-5 text-[#0176D3]" />
+                Logistics Hubs & Real-World Inventory Balances
+              </h2>
+              <p className="text-xs text-slate-500">
+                Manage fulfillment warehouse locations, shipping rates, and restock live hardware inventory as new stock arrives.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsAddWarehouseOpen(true)}
+              className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" /> + Add New Warehouse
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {warehouses.map((w) => (
+              <div key={w.id} className="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-4 shadow-2xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Building className="w-4 h-4 text-[#0176D3]" />
+                      {w.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Location: <strong className="text-slate-800">{w.location}</strong> • Freight Base: <strong className="text-slate-800">₹{w.shippingCostBase.toLocaleString('en-IN')}</strong> • Per Unit: <strong className="text-slate-800">₹{w.weightMultiplier}</strong>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setEditingWarehouse(w)}
+                    className="text-xs font-bold px-3 py-1.5 rounded-md bg-white hover:bg-blue-50 text-[#0176D3] border border-blue-200 transition cursor-pointer shadow-2xs"
+                  >
+                    [Edit Warehouse Details]
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                    LIVE INVENTORY STOCK LEVELS:
+                  </span>
+                  <div className="space-y-2">
+                    {products.map((prod) => {
+                      const inv = inventory.find((i) => i.warehouseId === w.id && (i.productId === prod.id || i.productId === prod.sku));
+                      const isNonPhysical = prod.categoryId === 'services' || prod.categoryId === 'subscription' || prod.isRecurring || prod.name.toLowerCase().includes('service') || prod.name.toLowerCase().includes('plan');
+                      const currentStock = inv ? inv.quantityOnHand : 0;
+
+                      return (
+                        <div key={prod.id} className="flex items-center justify-between text-xs font-mono bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+                          <div>
+                            <span className="text-slate-900 font-bold block">{prod.name}</span>
+                            <span className="text-[10px] text-slate-500 font-sans capitalize">{prod.categoryId} • SKU: {prod.sku}</span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            {isNonPhysical ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded bg-indigo-50 text-indigo-800 border border-indigo-200 font-sans">
+                                ✓ Digital / Service — Auto-Activated
+                              </span>
+                            ) : (
+                              <>
+                                <span className={`font-extrabold text-sm font-mono ${currentStock > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                  {currentStock} units
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setEditingStock({
+                                      warehouseId: w.id,
+                                      warehouseName: w.name,
+                                      productId: prod.id,
+                                      productName: prod.name,
+                                      currentStock,
+                                    });
+                                    setNewStockVal(currentStock);
+                                  }}
+                                  className="px-2.5 py-1 rounded text-xs font-bold font-sans bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer shadow-2xs"
+                                >
+                                  [+ Restock Stock]
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: GOVERNANCE & APPROVAL CHAINS (Blueprint Page 18) */}
       {activeTab === 'governance' && (
         <div className="space-y-6">
           {/* Header Title Bar matching Blueprint Page 18 */}
@@ -655,11 +792,11 @@ export const AdminConfigView: React.FC = () => {
 
           {/* Warehouse Stock Matrix */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4 shadow-2xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
                 <WarehouseIcon className="w-4 h-4 text-[#0176D3]" />
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Fulfillment Warehouses & Regional Inventory Pools
+                  Fulfillment Warehouses & Live Stock Management
                 </span>
               </div>
               <span className="text-[11px] text-slate-500 font-medium">
@@ -669,31 +806,61 @@ export const AdminConfigView: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {warehouses.map((w) => (
-                <div key={w.id} className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
+                <div key={w.id} className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                     <div>
                       <h3 className="text-xs font-bold text-slate-900">{w.name}</h3>
                       <p className="text-[11px] text-slate-500">{w.location} • Base Shipping: ₹{w.shippingCostBase.toLocaleString('en-IN')}</p>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      Online
-                    </span>
+                    <button
+                      onClick={() => {
+                        const newName = prompt('Edit Warehouse Name:', w.name);
+                        const newLocation = prompt('Edit Location:', w.location);
+                        const newBase = prompt('Base Shipping Cost (₹):', String(w.shippingCostBase));
+                        if (newName && newLocation && newBase) {
+                          updateWarehouse({
+                            ...w,
+                            name: newName,
+                            location: newLocation,
+                            shippingCostBase: Number(newBase),
+                          });
+                        }
+                      }}
+                      className="text-[10px] font-bold px-2 py-1 rounded bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 transition cursor-pointer"
+                    >
+                      [Edit Warehouse]
+                    </button>
                   </div>
 
                   <div className="space-y-1.5">
                     <span className="text-[11px] font-semibold text-slate-600 block uppercase tracking-wider">Live Inventory Balances:</span>
-                    <div className="space-y-1">
-                      {inventory
-                        .filter((inv) => inv.warehouseId === w.id)
-                        .map((inv) => {
-                          const prod = products.find((p) => p.id === inv.productId);
-                          return (
-                            <div key={inv.id} className="flex items-center justify-between text-xs font-mono">
-                              <span className="text-slate-600">{prod?.name || inv.productId}:</span>
-                              <span className="font-bold text-slate-900">{inv.quantityOnHand} units available</span>
+                    <div className="space-y-2">
+                      {products.map((prod) => {
+                        const inv = inventory.find((i) => i.warehouseId === w.id && (i.productId === prod.id || i.productId === prod.sku));
+                        const currentStock = inv ? inv.quantityOnHand : 100;
+                        return (
+                          <div key={prod.id} className="flex items-center justify-between text-xs font-mono bg-white p-2 rounded border border-slate-200">
+                            <div>
+                              <span className="text-slate-900 font-bold block">{prod.name}</span>
+                              <span className="text-[10px] text-slate-500 font-sans capitalize">{prod.categoryId}</span>
                             </div>
-                          );
-                        })}
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-blue-700 text-xs">{currentStock} units</span>
+                              <button
+                                onClick={() => {
+                                  const val = prompt(`Restock ${prod.name} at ${w.name}.\nEnter new available stock count:`, String(currentStock));
+                                  if (val !== null && !isNaN(Number(val))) {
+                                    updateInventoryStock(w.id, prod.id, Number(val));
+                                  }
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold font-sans bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 transition cursor-pointer"
+                              >
+                                [+ Restock]
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -998,6 +1165,276 @@ export const AdminConfigView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD WAREHOUSE */}
+      {isAddWarehouseOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <WarehouseIcon className="w-5 h-5 text-[#0176D3]" /> Provision New Fulfillment Warehouse
+              </h3>
+              <button onClick={() => setIsAddWarehouseOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!whName.trim() || !whLocation.trim()) return;
+                addWarehouse({
+                  id: `wh-${Date.now()}`,
+                  name: whName.trim(),
+                  location: whLocation.trim(),
+                  shippingCostBase: whFreightBase,
+                  weightMultiplier: whWeightMult,
+                });
+                setIsAddWarehouseOpen(false);
+                setWhName('');
+                setWhLocation('');
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Warehouse Hub Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Pune Regional Depot"
+                  value={whName}
+                  onChange={(e) => setWhName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">City / Location *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Chakan Industrial Area, Pune, Maharashtra"
+                  value={whLocation}
+                  onChange={(e) => setWhLocation(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Base Freight (₹)</label>
+                  <input
+                    type="number"
+                    value={whFreightBase}
+                    onChange={(e) => setWhFreightBase(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Per-Unit Freight (₹)</label>
+                  <input
+                    type="number"
+                    value={whWeightMult}
+                    onChange={(e) => setWhWeightMult(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsAddWarehouseOpen(false)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#0176D3] text-white font-bold hover:bg-blue-700 shadow-xs cursor-pointer"
+                >
+                  Save Warehouse
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT WAREHOUSE */}
+      {editingWarehouse && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <WarehouseIcon className="w-5 h-5 text-[#0176D3]" /> Edit Warehouse Details
+              </h3>
+              <button onClick={() => setEditingWarehouse(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                updateWarehouse(editingWarehouse);
+                setEditingWarehouse(null);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Warehouse Hub Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editingWarehouse.name}
+                  onChange={(e) => setEditingWarehouse({ ...editingWarehouse, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] outline-none font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">City / Location</label>
+                <input
+                  type="text"
+                  required
+                  value={editingWarehouse.location}
+                  onChange={(e) => setEditingWarehouse({ ...editingWarehouse, location: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Base Freight (₹)</label>
+                  <input
+                    type="number"
+                    value={editingWarehouse.shippingCostBase}
+                    onChange={(e) => setEditingWarehouse({ ...editingWarehouse, shippingCostBase: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] outline-none font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Per-Unit Rate (₹)</label>
+                  <input
+                    type="number"
+                    value={editingWarehouse.weightMultiplier}
+                    onChange={(e) => setEditingWarehouse({ ...editingWarehouse, weightMultiplier: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] outline-none font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingWarehouse(null)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#0176D3] text-white font-bold hover:bg-blue-700 shadow-xs cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RESTOCK / UPDATE INVENTORY STOCK */}
+      {editingStock && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Package className="w-5 h-5 text-emerald-600" /> Restock Warehouse Stock
+              </h3>
+              <button onClick={() => setEditingStock(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1 font-sans">
+                <span className="text-slate-500 font-medium block">Product: <strong className="text-slate-900 font-bold">{editingStock.productName}</strong></span>
+                <span className="text-slate-500 font-medium block">Logistics Hub: <strong className="text-slate-900 font-bold">{editingStock.warehouseName}</strong></span>
+                <span className="text-slate-500 font-medium block">Current Available Units: <strong className="text-blue-700 font-bold font-mono">{editingStock.currentStock} units</strong></span>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">New Total Available Stock Count</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newStockVal}
+                  onChange={(e) => setNewStockVal(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-[#0176D3] outline-none text-base font-mono font-bold text-slate-900"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[11px] font-bold text-slate-500 uppercase block">Quick Restock Shortcuts:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewStockVal((prev) => prev + 10)}
+                    className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-bold text-slate-800 border border-slate-300 transition cursor-pointer"
+                  >
+                    +10 Units
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewStockVal((prev) => prev + 25)}
+                    className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-bold text-slate-800 border border-slate-300 transition cursor-pointer"
+                  >
+                    +25 Units
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewStockVal((prev) => prev + 50)}
+                    className="px-2.5 py-1 rounded bg-[#0176D3]/10 hover:bg-[#0176D3]/20 font-bold text-[#0176D3] border border-[#0176D3]/30 transition cursor-pointer"
+                  >
+                    +50 Units
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewStockVal((prev) => prev + 100)}
+                    className="px-2.5 py-1 rounded bg-emerald-50 hover:bg-emerald-100 font-bold text-emerald-800 border border-emerald-300 transition cursor-pointer"
+                  >
+                    +100 Units
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingStock(null)}
+                  className="px-3.5 py-2 rounded-lg border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateInventoryStock(editingStock.warehouseId, editingStock.productId, newStockVal);
+                    setEditingStock(null);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs cursor-pointer"
+                >
+                  Update Inventory Stock
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

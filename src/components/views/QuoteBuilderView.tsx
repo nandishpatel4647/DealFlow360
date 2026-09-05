@@ -14,6 +14,11 @@ import {
   RotateCcw,
   XCircle,
   FileText,
+  MapPin,
+  Calendar,
+  Clock,
+  ArrowRight,
+  UserCheck,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { MarginGauge } from '../design-system/MarginGauge';
@@ -22,7 +27,9 @@ import { ApprovalStepper } from '../design-system/ApprovalStepper';
 import { StatusBadge } from '../design-system/StatusBadge';
 import { ActivityTimeline } from '../design-system/ActivityTimeline';
 import { RiskBadge } from '../design-system/RiskBadge';
+import { AddressModal } from '../modals/AddressModal';
 import { getUpsellRecommendations } from '../../logic/upsellEngine';
+import { formatDateDisplay, calculateDaysDifference, formatDateInput } from '../../logic/dateUtils';
 
 export const QuoteBuilderView: React.FC = () => {
   const {
@@ -39,6 +46,10 @@ export const QuoteBuilderView: React.FC = () => {
     financeApprove,
     returnForRevision,
     rejectQuote,
+    acceptCustomerRevision,
+    rejectCustomerRevision,
+    updateDeliveryAddress,
+    updatePromisedDeliveryDate,
     setActiveView,
     setSelectedQuoteId,
     auditLogs,
@@ -52,6 +63,7 @@ export const QuoteBuilderView: React.FC = () => {
   const [selectedProductToAdd, setSelectedProductToAdd] = useState<string>('');
   const [saveSuccessToast, setSaveSuccessToast] = useState<boolean>(false);
   const [isChatDrawerOpen, setIsChatDrawerOpen] = useState<boolean>(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState<boolean>(false);
   const [repReplyText, setRepReplyText] = useState<string>('');
 
   // Modal State for Return / Reject Comments
@@ -184,15 +196,6 @@ export const QuoteBuilderView: React.FC = () => {
               </button>
             )}
 
-            {(userRole === 'sales_rep' || userRole === 'admin') && (activeQuote.status === 'Manager Approved' || activeQuote.status === 'Fully Approved') && (
-              <button
-                onClick={() => sendToCustomer(activeQuote.id)}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <Send className="w-4 h-4" /> Send Quotation to Customer
-              </button>
-            )}
-
             {/* SALES MANAGER ACTIONS */}
             {userRole === 'sales_manager' && activeQuote.status === 'Pending Manager' && (
               <>
@@ -256,55 +259,232 @@ export const QuoteBuilderView: React.FC = () => {
           </div>
         </div>
 
-        {/* CUSTOMER REQUESTS & MESSAGES HIGHLIGHT CARD (REQUIRED BY PART 2) */}
-        {(activeQuote.customerCounterNotes || activeQuote.customerRequestedDelivery || activeQuote.status === 'Customer Revision Requested' || activeQuote.status === 'Under Negotiation') && (
-          <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-4 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-              <div className="flex items-center gap-2 text-blue-900 font-bold text-xs">
-                <MessageSquare className="w-4 h-4 text-[#0176D3]" />
-                <span>CUSTOMER REQUESTS & MESSAGES</span>
-              </div>
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-[#0176D3] text-white">
-                Revision Requested
+        {/* DELIVERY INFORMATION CARD (REQUIRED) */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 font-sans shadow-2xs">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
+              <MapPin className="w-4 h-4 text-blue-600" />
+              <span>DELIVERY INFORMATION</span>
+            </div>
+            {canEditQuote && (
+              <button
+                onClick={() => setIsAddressModalOpen(true)}
+                className="px-3 py-1 rounded-md text-xs font-bold bg-white text-blue-700 hover:bg-blue-50 border border-blue-200 shadow-2xs transition cursor-pointer"
+              >
+                [Edit / Select Delivery Address]
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-medium">
+            <div className="bg-white p-3 rounded-lg border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block uppercase mb-1">
+                Promised Delivery Date
+              </span>
+              {canEditQuote ? (
+                <div className="flex flex-col gap-1">
+                  <input
+                    type="date"
+                    value={formatDateInput(activeQuote.promisedDeliveryDate)}
+                    onChange={(e) => updatePromisedDeliveryDate(activeQuote.id, e.target.value)}
+                    className="w-full font-bold font-mono text-[#0176D3] bg-blue-50 border border-blue-300 rounded px-2 py-1 outline-none focus:border-blue-600 cursor-pointer"
+                  />
+                  <span className="text-[10px] text-slate-500 font-sans">
+                    Formatted: <strong className="text-slate-800">{formatDateDisplay(activeQuote.promisedDeliveryDate)}</strong>
+                  </span>
+                </div>
+              ) : (
+                <span className="font-bold text-slate-900 font-mono text-sm">
+                  {formatDateDisplay(activeQuote.promisedDeliveryDate || '15 October 2026')}
+                </span>
+              )}
+            </div>
+
+            <div className="bg-white p-3 rounded-lg border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block uppercase mb-1">
+                Customer Requested Delivery Date
+              </span>
+              <span className="font-bold text-blue-700 font-mono text-sm">
+                {formatDateDisplay(
+                  activeQuote.customerRevisionRequest?.requestedDeliveryDate ||
+                  activeQuote.requestedDeliveryDate
+                )}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              {activeQuote.customerCounterNotes && (
-                <div className="bg-white p-3 rounded-lg border border-blue-200">
-                  <span className="text-slate-500 font-bold block mb-1">Customer message:</span>
-                  <p className="text-slate-900 font-medium italic">"{activeQuote.customerCounterNotes}"</p>
+            <div className="bg-white p-3 rounded-lg border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block uppercase mb-1">
+                Delivery Location
+              </span>
+              {activeQuote.deliveryAddress ? (
+                <div>
+                  <span className="font-bold text-slate-900 block">
+                    {activeQuote.deliveryAddress.city}, {activeQuote.deliveryAddress.state} ({activeQuote.deliveryAddress.postalCode})
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    {activeQuote.deliveryAddress.addressLine1}
+                  </span>
                 </div>
+              ) : (
+                <span className="text-slate-400 italic">No delivery address selected</span>
               )}
+            </div>
+          </div>
+        </div>
 
-              {activeQuote.customerRequestedDelivery && (
-                <div className="bg-white p-3 rounded-lg border border-blue-200">
-                  <span className="text-slate-500 font-bold block mb-1">Requested delivery date:</span>
-                  <p className="text-[#0176D3] font-bold font-mono">{activeQuote.customerRequestedDelivery}</p>
+        {/* PROMINENT CUSTOMER REVISION REQUEST COMPARISON PANEL */}
+        {(activeQuote.customerRevisionRequest || activeQuote.status === 'Customer Revision Requested') && (
+          <div className="bg-amber-50/80 border-2 border-amber-300 rounded-xl p-5 space-y-5 shadow-xs">
+            {/* Header Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-200">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <h3 className="text-sm font-extrabold text-amber-950 uppercase tracking-wide">
+                    CUSTOMER REVISION REQUEST
+                  </h3>
+                  <p className="text-xs text-amber-800 font-medium">
+                    Status: <span className="font-bold text-amber-900 bg-amber-200/80 px-2 py-0.5 rounded">Action Required</span> • Customer: <span className="font-bold text-amber-950">{activeQuote.companyName}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons: Accept / Modify / Reject */}
+              {(userRole === 'sales_rep' || userRole === 'admin') && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      acceptCustomerRevision(activeQuote.id);
+                      alert(`Accepted customer revision terms for ${activeQuote.id}. Governance rules re-evaluated.`);
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> [Accept Requested Change]
+                  </button>
+                  <button
+                    onClick={() => {
+                      alert('Sales Rep editing mode active. Adjust discounts or quantities in the line item table below.');
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    [Modify / Negotiate]
+                  </button>
+                  <button
+                    onClick={() => {
+                      const reason = prompt('Enter reason for rejecting customer revision request:', 'Declined requested discount. Original proposal stands.');
+                      if (reason !== null) {
+                        rejectCustomerRevision(activeQuote.id, reason);
+                      }
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4" /> [Reject Request]
+                  </button>
                 </div>
               )}
             </div>
 
-            {/* Line Item Specific Requests */}
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[11px] font-bold uppercase text-blue-900 block">Requested adjustments:</span>
-              <div className="space-y-1 bg-white p-3 rounded-lg border border-blue-200 text-xs">
-                {activeQuote.lines
-                  .filter((l) => l.customerComment || (l.counterDiscountPercent !== undefined && l.counterDiscountPercent !== l.discountPercent))
-                  .map((l) => (
-                    <div key={l.id} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
-                      <div>
-                        <span className="font-bold text-slate-900">{l.productName}:</span>{' '}
-                        <span className="text-slate-600 italic">{l.customerComment || 'Requested revised discount'}</span>
-                      </div>
-                      <div className="font-mono text-xs font-bold text-rose-700">
-                        Requested: {l.counterDiscountPercent || l.discountPercent}% (Current: {l.discountPercent}%)
-                      </div>
+            {/* Customer Message */}
+            <div className="bg-white p-3.5 rounded-lg border border-amber-200 text-xs">
+              <span className="text-amber-900 font-extrabold uppercase text-[11px] block mb-1">
+                Customer Message:
+              </span>
+              <p className="text-slate-900 font-medium italic text-xs">
+                "{activeQuote.customerRevisionRequest?.message || activeQuote.customerCounterNotes || 'Please review the requested discount and revised delivery schedule.'}"
+              </p>
+            </div>
+
+            {/* DELIVERY DATE COMPARISON */}
+            <div className="bg-white p-3.5 rounded-lg border border-amber-200 space-y-2 text-xs">
+              <span className="text-amber-900 font-extrabold uppercase text-[11px] block border-b border-amber-100 pb-1">
+                DELIVERY DATE COMPARISON
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono">
+                <div>
+                  <span className="text-slate-500 text-[11px] font-semibold block">Promised / Revised Delivery:</span>
+                  {canEditQuote ? (
+                    <div className="mt-1 flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={formatDateInput(activeQuote.promisedDeliveryDate)}
+                        onChange={(e) => updatePromisedDeliveryDate(activeQuote.id, e.target.value)}
+                        className="font-bold text-[#0176D3] font-mono text-xs bg-blue-50 border border-blue-300 rounded px-2 py-1 outline-none focus:border-blue-600 cursor-pointer"
+                      />
+                      <span className="text-[11px] text-slate-700 font-sans font-bold">
+                        {formatDateDisplay(activeQuote.promisedDeliveryDate)}
+                      </span>
                     </div>
-                  ))}
-                {activeQuote.lines.filter((l) => l.customerComment || (l.counterDiscountPercent !== undefined && l.counterDiscountPercent !== l.discountPercent)).length === 0 && (
-                  <p className="text-slate-500 italic text-[11px]">General commercial term adjustment requested by customer.</p>
-                )}
+                  ) : (
+                    <span className="font-bold text-slate-900 text-sm">
+                      {formatDateDisplay(activeQuote.promisedDeliveryDate || '15 October 2026')}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[11px] font-semibold block">Customer Requested Delivery:</span>
+                  <span className="font-bold text-blue-700 text-sm">
+                    {formatDateDisplay(
+                      activeQuote.customerRevisionRequest?.requestedDeliveryDate ||
+                      activeQuote.requestedDeliveryDate ||
+                      '20 October 2026'
+                    )}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[11px] font-semibold block">Schedule Difference:</span>
+                  <span className="font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded text-xs inline-block">
+                    {calculateDaysDifference(
+                      activeQuote.promisedDeliveryDate || '15 October 2026',
+                      activeQuote.customerRevisionRequest?.requestedDeliveryDate ||
+                      activeQuote.requestedDeliveryDate ||
+                      '20 October 2026'
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* COMMERCIAL CHANGE REQUESTS COMPARISON TABLE */}
+            <div className="bg-white p-3.5 rounded-lg border border-amber-200 space-y-2">
+              <span className="text-amber-900 font-extrabold uppercase text-[11px] block border-b border-amber-100 pb-1">
+                COMMERCIAL CHANGE REQUESTS (Original vs Customer Requested)
+              </span>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="p-2.5">Product / Service</th>
+                      <th className="p-2.5">Original Discount</th>
+                      <th className="p-2.5 text-blue-700">Customer Requested</th>
+                      <th className="p-2.5 font-mono">Original Price</th>
+                      <th className="p-2.5 text-rose-700">Requested Change</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 font-medium">
+                    {(activeQuote.customerRevisionRequest?.lineRequests || activeQuote.lines.map(l => ({
+                      lineId: l.id,
+                      productId: l.productId,
+                      productName: l.productName,
+                      originalDiscountPercent: l.discountPercent,
+                      requestedDiscountPercent: l.counterDiscountPercent || l.discountPercent + 5,
+                      unitListPrice: l.unitListPrice,
+                    }))).map((reqLine) => {
+                      const diff = reqLine.requestedDiscountPercent - reqLine.originalDiscountPercent;
+                      return (
+                        <tr key={reqLine.lineId}>
+                          <td className="p-2.5 font-bold text-slate-900">{reqLine.productName}</td>
+                          <td className="p-2.5 font-semibold text-slate-800">{reqLine.originalDiscountPercent}%</td>
+                          <td className="p-2.5 font-bold text-blue-700 bg-blue-50/50">{reqLine.requestedDiscountPercent}%</td>
+                          <td className="p-2.5 font-mono text-slate-700">₹{reqLine.unitListPrice.toLocaleString('en-IN')}</td>
+                          <td className="p-2.5 font-bold text-rose-700">
+                            {diff > 0 ? `+${diff} percentage points` : 'No change'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -527,6 +707,55 @@ export const QuoteBuilderView: React.FC = () => {
             approvalStage={activeQuote.approvalStage}
             assignedTo={activeQuote.approvalAssignedTo}
           />
+
+          {/* REVISION HISTORY TIMELINE (REQUIRED) */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                REVISION HISTORY ({activeQuote.revisionHistory?.length || 1} Versions)
+              </span>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Version snapshot tracking
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {(activeQuote.revisionHistory || [
+                {
+                  version: 1,
+                  updatedBy: activeQuote.salesRep,
+                  timestamp: activeQuote.createdAt,
+                  promisedDeliveryDate: activeQuote.promisedDeliveryDate || '15 Oct 2026',
+                  discountSummary: 'Initial proposal created',
+                  status: activeQuote.status,
+                },
+              ]).map((rev) => (
+                <div key={rev.version} className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1.5 font-sans">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-slate-900 font-mono">
+                      Version {rev.version}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {new Date(rev.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-slate-700 font-semibold">
+                    Updated by: <span className="text-slate-900 font-bold">{rev.updatedBy}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-slate-600 font-medium text-[11px]">
+                    <span>Promised Delivery: <strong>{rev.promisedDeliveryDate || '15 Oct 2026'}</strong></span>
+                    {rev.requestedDeliveryDate && (
+                      <span>Requested Delivery: <strong className="text-blue-700">{rev.requestedDeliveryDate}</strong></span>
+                    )}
+                    <span>Status: <strong>{rev.status}</strong></span>
+                  </div>
+                  <p className="text-slate-600 italic bg-white p-2 rounded border border-slate-200 text-[11px]">
+                    {rev.discountSummary}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Audit Trail History */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs space-y-3">
@@ -814,6 +1043,15 @@ export const QuoteBuilderView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Address Selection / Add Modal */}
+      <AddressModal
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+        initialAddress={activeQuote.deliveryAddress}
+        companyName={activeQuote.companyName}
+        onSave={(addr) => updateDeliveryAddress(activeQuote.id, addr)}
+      />
     </div>
   );
 };
