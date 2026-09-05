@@ -79,9 +79,13 @@
     inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 
-/* 3D Embossed Card Effects & Dynamic Shadows */
+/* 3D Embossed Card Effects & Dynamic Shadows across entire application */
 .card-3d,
-.card-hover-3d {
+.card-hover-3d,
+.surface-card,
+.kanban-card,
+.metric-card,
+main .bg-white.rounded-xl.border:not(.no-hover):not(.fixed):not(.absolute) {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
@@ -90,19 +94,24 @@
     0 4px 14px -2px rgba(15, 23, 42, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     inset 0 -1px 0 rgba(15, 23, 42, 0.02);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
               border-color 0.2s ease;
-  position: relative;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-.card-hover-3d:hover {
-  transform: translateY(-4px) scale(1.002);
+.card-3d:hover,
+.card-hover-3d:hover,
+.surface-card:hover,
+.kanban-card:hover,
+.metric-card:hover,
+main .bg-white.rounded-xl.border:not(.no-hover):not(.fixed):not(.absolute):hover {
+  transform: translateY(-3px);
   border-color: #93c5fd;
   box-shadow: 
-    0 14px 28px -4px rgba(1, 118, 211, 0.14),
-    0 6px 14px -2px rgba(15, 23, 42, 0.07),
-    0 0 0 1px rgba(1, 118, 211, 0.18),
+    0 12px 26px -4px rgba(1, 118, 211, 0.12),
+    0 4px 10px -2px rgba(15, 23, 42, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 

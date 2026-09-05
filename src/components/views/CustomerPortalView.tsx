@@ -638,9 +638,16 @@ export const CustomerPortalView: React.FC = () => {
                     {activeQuote.lines.map((l) => (
                       <tr key={l.id} className="hover:bg-slate-50/60 transition">
                         <td className="p-3.5">
-                          <span className="text-slate-900 font-bold block">{l.productName}</span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-slate-900 font-bold block">{l.productName}</span>
+                            {l.isRecurring && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-purple-100 to-indigo-100 text-indigo-900 border border-indigo-200 shadow-2xs">
+                                ⚡ Recurring ({l.billingPeriod || 'Monthly'})
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[11px] text-slate-500 capitalize">
-                            {l.category} {l.isRecurring && '• Monthly SaaS'}
+                            {l.category} {l.isRecurring ? '• SaaS Cloud Subscription' : '• One-Time Product'}
                           </span>
                         </td>
                         <td className="p-3.5 text-center font-bold text-slate-800">{l.quantity}</td>
@@ -657,11 +664,33 @@ export const CustomerPortalView: React.FC = () => {
 
               {/* Total Summary */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono">
-                <div className="text-xs text-slate-600">
-                  Catalog Total:{' '}
-                  <span className="line-through text-slate-400">
-                    ₹{activeQuote.totalListAmount.toLocaleString('en-IN')}
-                  </span>
+                <div className="space-y-1 text-xs">
+                  <div className="text-slate-600">
+                    Catalog Total:{' '}
+                    <span className="line-through text-slate-400">
+                      ₹{activeQuote.totalListAmount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  {activeQuote.lines.some((l) => l.isRecurring) && (
+                    <div className="text-indigo-700 font-bold font-sans flex items-center gap-1">
+                      <span>⚡ Ongoing Recurring Fee:</span>
+                      <span className="font-mono">
+                        ₹
+                        {activeQuote.lines
+                          .filter((l) => l.isRecurring)
+                          .reduce(
+                            (s, l) =>
+                              s +
+                              (l.billingPeriod === 'yearly'
+                                ? Math.round(l.netAmount / 12)
+                                : l.netAmount),
+                            0
+                          )
+                          .toLocaleString('en-IN')}
+                        /month
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-base font-extrabold text-slate-900">
                   Total Contract Amount Payable:{' '}
@@ -670,6 +699,55 @@ export const CustomerPortalView: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              {/* Recurring Subscription Terms Banner for Customer */}
+              {activeQuote.lines.some((l) => l.isRecurring) && (
+                <div className="p-4 rounded-xl bg-gradient-to-r from-purple-50 via-indigo-50/70 to-blue-50 border border-indigo-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-600 text-white shadow-2xs">
+                        Included Subscription
+                      </span>
+                      <h4 className="text-xs font-black text-slate-900">
+                        Enterprise SaaS Recurring Services & SLA Terms
+                      </h4>
+                    </div>
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Auto-Renewal Active
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="p-2.5 rounded-lg bg-white border border-indigo-100 space-y-0.5">
+                      <span className="text-slate-500 text-[10px] font-bold uppercase block">
+                        Subscription Plans
+                      </span>
+                      <span className="font-bold text-slate-900 block">
+                        {activeQuote.lines
+                          .filter((l) => l.isRecurring)
+                          .map((l) => l.productName)
+                          .join(', ')}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-white border border-indigo-100 space-y-0.5">
+                      <span className="text-slate-500 text-[10px] font-bold uppercase block">
+                        Billing Cadence
+                      </span>
+                      <span className="font-bold text-indigo-700 block">
+                        Automated Monthly Invoicing (Net-30)
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-white border border-indigo-100 space-y-0.5">
+                      <span className="text-slate-500 text-[10px] font-bold uppercase block">
+                        Support SLA
+                      </span>
+                      <span className="font-bold text-emerald-700 block">
+                        24/7 Priority Resolution • 99.99% Uptime
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* CUSTOMER REVISION REQUEST FORM */}

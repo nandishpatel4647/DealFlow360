@@ -561,11 +561,18 @@ export const QuoteBuilderView: React.FC = () => {
                   {activeQuote.lines.map((line) => (
                     <tr key={line.id} className="hover:bg-slate-50/60 transition">
                       <td className="p-3 font-sans">
-                        <span className="text-slate-900 font-bold block">
-                          {line.productName}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-slate-900 font-bold block">
+                            {line.productName}
+                          </span>
+                          {line.isRecurring && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-purple-100 to-indigo-100 text-indigo-900 border border-indigo-200 shadow-2xs">
+                              ⚡ Recurring MRR ({line.billingPeriod || 'Monthly'})
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[11px] text-slate-500 capitalize font-medium">
-                          {line.category} {line.isRecurring && '• Monthly SaaS'}
+                          {line.category} {line.isRecurring ? '• SaaS Cloud Subscription' : '• One-Time Goods'}
                         </span>
                       </td>
 
@@ -720,6 +727,54 @@ export const QuoteBuilderView: React.FC = () => {
               </div>
             )}
 
+            {/* High-Margin Subscription Quick Upsell Row */}
+            {canEditQuote && (
+              <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-purple-50 via-indigo-50/60 to-blue-50 border border-indigo-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                      Key Hackathon Feature
+                    </span>
+                    <span className="text-xs font-black text-slate-900">
+                      Attach Recurring SaaS & Care Subscriptions (MRR / ARR)
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-indigo-700 font-bold">
+                    +15-25% Margin Boost
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {products
+                    .filter((p) => p.isRecurring || p.categoryId === 'subscription')
+                    .map((subProd) => {
+                      const isAlreadyInQuote = activeQuote.lines.some((l) => l.productId === subProd.id);
+                      return (
+                        <button
+                          key={subProd.id}
+                          onClick={() => {
+                            addLineToQuote(activeQuote.id, subProd.id, 1, 0);
+                            setSaveSuccessToast(true);
+                            setTimeout(() => setSaveSuccessToast(false), 2500);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                            isAlreadyInQuote
+                              ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                              : 'bg-white hover:bg-indigo-50 text-indigo-800 border border-indigo-200'
+                          }`}
+                        >
+                          <Plus className="w-3 h-3 text-indigo-600" />
+                          <span>{subProd.name}</span>
+                          <span className="font-mono text-[10px] text-indigo-600 font-extrabold">
+                            (₹{subProd.listPrice.toLocaleString('en-IN')}/{subProd.billingPeriod === 'yearly' ? 'yr' : 'mo'})
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
             {/* AI Top Recommendation Pill Bar */}
             {canEditQuote && upsellRecommendations.length > 0 && (
               <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 via-indigo-50/70 to-purple-50 border border-blue-200/90 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
@@ -832,6 +887,31 @@ export const QuoteBuilderView: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block pb-2 border-b border-slate-200">
               Quotation Detail Summary
             </span>
+
+            {/* Recurring Subscription vs One-time Breakdown */}
+            <div className="p-3 rounded-lg bg-gradient-to-r from-slate-50 to-indigo-50/50 border border-indigo-100 space-y-1.5 text-xs font-sans">
+              <div className="flex justify-between items-center text-slate-600 font-medium">
+                <span>Upfront / One-Time:</span>
+                <span className="font-mono font-bold text-slate-900">
+                  ₹{activeQuote.lines.filter(l => !l.isRecurring).reduce((s, l) => s + l.netAmount, 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-indigo-900 font-semibold">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block"></span>
+                  Recurring MRR:
+                </span>
+                <span className="font-mono font-black text-indigo-700">
+                  ₹{activeQuote.lines.filter(l => l.isRecurring).reduce((s, l) => s + (l.billingPeriod === 'yearly' ? Math.round(l.netAmount/12) : l.netAmount), 0).toLocaleString('en-IN')}/mo
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-purple-950 font-bold border-t border-indigo-100 pt-1 text-[11px]">
+                <span>Annualized Run-Rate (ARR):</span>
+                <span className="font-mono text-purple-700">
+                  ₹{(activeQuote.lines.filter(l => l.isRecurring).reduce((s, l) => s + (l.billingPeriod === 'yearly' ? Math.round(l.netAmount/12) : l.netAmount), 0) * 12).toLocaleString('en-IN')}/yr
+                </span>
+              </div>
+            </div>
 
             <div className="space-y-2.5 text-xs font-mono">
               <div className="flex justify-between text-slate-600 font-medium">
@@ -961,7 +1041,7 @@ export const QuoteBuilderView: React.FC = () => {
                 {filteredRecommendations.slice(0, 3).map((rec) => (
                   <div
                     key={rec.productId}
-                    className="p-3.5 rounded-xl bg-gradient-to-b from-slate-50 to-white border border-slate-200 hover:border-blue-300 transition-all duration-200 space-y-2.5 card-hover-3d shadow-2xs"
+                    className="p-3.5 rounded-xl bg-white border border-slate-200 hover:border-blue-400 space-y-2.5 card-hover-3d shadow-2xs"
                   >
                     {/* Header Row: Type Badge + Confidence Pill */}
                     <div className="flex items-center justify-between gap-2">

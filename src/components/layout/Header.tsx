@@ -137,14 +137,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
             <>
               {/* Click-away backdrop overlay */}
               <div
-                className="fixed inset-0 z-40"
+                className="fixed inset-0 z-40 bg-slate-900/10"
                 onClick={() => setShowNotifications(false)}
               />
 
-              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl border border-slate-200 shadow-2xl z-50 p-3 space-y-2 card-3d">
+              <div className="absolute right-0 top-[calc(100%+8px)] w-80 sm:w-96 bg-white rounded-xl border border-slate-200 shadow-2xl z-50 p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-xs font-bold text-slate-900">Governance Alerts</span>
-                  <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full badge-3d">
+                  <div className="flex items-center gap-1.5">
+                    <Bell className="w-4 h-4 text-[#0176D3]" />
+                    <span className="text-xs font-bold text-slate-900">Governance Alerts</span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
                     {activeAnomalies.length} Active
                   </span>
                 </div>

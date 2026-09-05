@@ -495,7 +495,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [companies, setCompanies] = useState<Company[]>(initialSaved?.companies || SEED_COMPANIES);
   const [products, setProducts] = useState<Product[]>(() => {
     if (!initialSaved?.products) return SEED_PRODUCTS;
-    return initialSaved.products.map((p: Product) => {
+    const mapped = initialSaved.products.map((p: Product) => {
       const seed = SEED_PRODUCTS.find((sp) => sp.id === p.id);
       if (seed && p.listPrice <= 1500 && seed.listPrice >= 10000) {
         return {
@@ -514,6 +514,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       return p;
     });
+    const existingIds = new Set(mapped.map((p: Product) => p.id));
+    const missingSeed = SEED_PRODUCTS.filter((sp) => !existingIds.has(sp.id));
+    return [...mapped, ...missingSeed];
   });
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialSaved?.warehouses || SEED_WAREHOUSES);
   const [inventory, setInventory] = useState<WarehouseInventory[]>(initialSaved?.inventory || SEED_INVENTORY);
@@ -531,9 +534,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [configPolicy, setConfigPolicy] = useState<ConfigPolicy>(
     initialSaved?.configPolicy || DEFAULT_CONFIG_POLICY
   );
-  const [anomalies, setAnomalies] = useState<DealAnomaly[]>(
-    () => initialSaved?.anomalies || scanDealAnomalies(SEED_QUOTES)
-  );
+  const [anomalies, setAnomalies] = useState<DealAnomaly[]>(() => {
+    if (!initialSaved?.anomalies) return scanDealAnomalies(SEED_QUOTES);
+    const ids = initialSaved.anomalies.map((a: DealAnomaly) => a.id);
+    const hasDuplicateIds = new Set(ids).size !== ids.length;
+    if (hasDuplicateIds) {
+      return scanDealAnomalies(SEED_QUOTES);
+    }
+    return initialSaved.anomalies;
+  });
   const [messages, setMessages] = useState<ChatMessage[]>(
     initialSaved?.messages || INITIAL_SEED_MESSAGES
   );
@@ -853,6 +862,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       prev.map((q) => {
         if (q.id !== quoteId) return q;
         const ceiling = configPolicy.categoryCeilings[product.categoryId] || 10;
+
+        // Check if item already exists in quote lines -> increment quantity
+        const existingLineIndex = q.lines.findIndex((l) => l.productId === productId);
+        if (existingLineIndex >= 0) {
+          const existingLine = q.lines[existingLineIndex];
+          const newQuantity = existingLine.quantity + quantity;
+          const metrics = calculateLineMetrics(
+            newQuantity,
+            product.listPrice,
+            product.costPrice,
+            existingLine.discountPercent,
+            ceiling
+          );
+
+          const updatedLines = [...q.lines];
+          updatedLines[existingLineIndex] = {
+            ...existingLine,
+            quantity: newQuantity,
+            isOverLimit: metrics.isOverLimit,
+            overLimitPoints: metrics.overLimitPoints,
+            netAmount: metrics.netAmount,
+            marginPercent: metrics.marginPercent,
+          };
+
+          const updatedQuote = recomputeQuote({ ...q, lines: updatedLines });
+          addCustomAuditLog(
+            quoteId,
+            currentUser?.name || 'Sales Rep (P. Mehta)',
+            `Increased ${product.name} quantity to ${newQuantity}`,
+            {
+              qty: newQuantity,
+              discount: `${existingLine.discountPercent}%`,
+              net: `₹${metrics.netAmount.toLocaleString('en-IN')}`,
+            }
+          );
+          broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
+          return updatedQuote;
+        }
+
         const metrics = calculateLineMetrics(
           quantity,
           product.listPrice,
@@ -1442,7 +1490,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           `Anomaly Action: ${actionTaken}`,
           { anomaly: anom.anomalyType }
         );
-        return { ...anom, isResolved: true };
+        return { ...anom, isResolved: true, actionTaken };
       })
     );
   };

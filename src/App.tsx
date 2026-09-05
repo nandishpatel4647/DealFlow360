@@ -73,10 +73,15 @@ const AppContent: React.FC = () => {
           </ProtectedRoute>
         );
       case 'pipeline':
+        return (
+          <ProtectedRoute permission="pipeline.view">
+            <QuoteKanbanView forcedMode="kanban" />
+          </ProtectedRoute>
+        );
       case 'builder':
         return (
           <ProtectedRoute permission="quotations.view">
-            {selectedQuoteId ? <QuoteBuilderView /> : <QuoteKanbanView />}
+            {selectedQuoteId ? <QuoteBuilderView /> : <QuoteKanbanView forcedMode="list" />}
           </ProtectedRoute>
         );
       case 'products':

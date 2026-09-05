@@ -5,14 +5,20 @@ import { QuoteStatus, RiskLevel } from '../../types';
 import { RiskBadge } from '../design-system/RiskBadge';
 import { StatusBadge } from '../design-system/StatusBadge';
 
-export const QuoteKanbanView: React.FC = () => {
+interface QuoteKanbanViewProps {
+  forcedMode?: 'kanban' | 'list';
+}
+
+export const QuoteKanbanView: React.FC<QuoteKanbanViewProps> = ({ forcedMode }) => {
   const { quotes, setSelectedQuoteId, setActiveView, createNewQuote, companies, userRole } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>(forcedMode || 'list');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
   const [riskFilter, setRiskFilter] = useState<string>('ALL');
   const [repFilter, setRepFilter] = useState<string>('ALL');
+
+  const effectiveMode = forcedMode || viewMode;
 
   const canCreate = userRole === 'sales_rep' || userRole === 'admin';
 
@@ -114,10 +120,12 @@ export const QuoteKanbanView: React.FC = () => {
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight text-slate-900 font-sans">
-            Quotations
+            {effectiveMode === 'kanban' ? 'Sales Pipeline' : 'Quotations'}
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Manage, review and track all customer quotations.
+            {effectiveMode === 'kanban'
+              ? 'Visual pipeline tracking deals and opportunities across commercial stages.'
+              : 'Manage, review and track all customer quotations.'}
           </p>
         </div>
 
@@ -150,31 +158,33 @@ export const QuoteKanbanView: React.FC = () => {
             />
           </div>
 
-          {/* View Switcher: Table List vs Kanban Board */}
-          <div className="flex items-center gap-2">
-            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-1 rounded-md font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                  viewMode === 'list'
-                    ? 'bg-white text-[#0176D3] shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <LayoutList className="w-3.5 h-3.5" /> Table List
-              </button>
-              <button
-                onClick={() => setViewMode('kanban')}
-                className={`px-3 py-1 rounded-md font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                  viewMode === 'kanban'
-                    ? 'bg-white text-[#0176D3] shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Kanban className="w-3.5 h-3.5" /> Kanban Board
-              </button>
+          {/* View Switcher: Table List vs Kanban Board (Hidden when forcedMode is set) */}
+          {!forcedMode && (
+            <div className="flex items-center gap-2">
+              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1 rounded-md font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                    effectiveMode === 'list'
+                      ? 'bg-white text-[#0176D3] shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutList className="w-3.5 h-3.5" /> Table List
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`px-3 py-1 rounded-md font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                    effectiveMode === 'kanban'
+                      ? 'bg-white text-[#0176D3] shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Kanban className="w-3.5 h-3.5" /> Kanban Board
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Dropdown Filters Row */}
@@ -254,8 +264,8 @@ export const QuoteKanbanView: React.FC = () => {
       </div>
 
       {/* VIEW MODE 1: TABLE LIST VIEW (PART 1 PRIMARY REQUIREMENT) */}
-      {viewMode === 'list' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+      {effectiveMode === 'list' && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs card-3d">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[11px] tracking-wider">
@@ -326,7 +336,7 @@ export const QuoteKanbanView: React.FC = () => {
       )}
 
       {/* VIEW MODE 2: KANBAN BOARD VIEW */}
-      {viewMode === 'kanban' && (
+      {effectiveMode === 'kanban' && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start overflow-x-auto min-h-[600px] pb-6">
           {columns.map((col) => {
             const colQuotes = filteredQuotes.filter((q) => col.statuses.includes(q.status));
