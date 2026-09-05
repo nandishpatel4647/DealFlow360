@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, ArrowRight, ArrowLeft, KeyRound, AlertCircle, UserPlus, Building, User, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, ArrowLeft, KeyRound, AlertCircle, UserPlus, Building, User, Sparkles, CheckCircle2, Database } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { DEMO_USERS, findDemoUser, DemoUser, ROLE_DEFAULT_AVATARS } from '../../auth/demoUsers';
 import { UserRole, Company } from '../../types';
@@ -10,7 +10,7 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding }) => {
-  const { login, loginAsCustomer, users, addUser, addCompany, setActiveView, getCustomAvatar } = useAppStore();
+  const { login, loginAsCustomer, users, addUser, addCompany, setActiveView, getCustomAvatar, isPostgresConnected } = useAppStore();
 
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [activeTab, setActiveTab] = useState<'internal' | 'customer'>('internal');
@@ -199,9 +199,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding }) => {
           <span>Back to Product Landing Page</span>
         </button>
 
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-950/80 border border-blue-800/50 text-[11px] font-semibold text-blue-200 backdrop-blur-md">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-          <span>DealFlow360 Multi-Role Access Gateway • RBAC Active</span>
+        <div className="flex items-center gap-2">
+          {isPostgresConnected && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-[11px] font-bold text-emerald-300 backdrop-blur-md">
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              <span>PostgreSQL 18 Connected</span>
+            </div>
+          )}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-950/80 border border-blue-800/50 text-[11px] font-semibold text-blue-200 backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span>Multi-Role Gateway • RBAC Active</span>
+          </div>
         </div>
       </div>
 

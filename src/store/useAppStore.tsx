@@ -37,14 +37,24 @@ import { generateOptimalFulfillment } from '../logic/fulfillmentEngine';
 import { generateHybridBilling } from '../logic/billingEngine';
 import { calculateDealCloseConfidence } from '../logic/aiEngine';
 import { DemoUser, DEMO_USERS, ROLE_DEFAULT_AVATARS, findDemoUser } from '../auth/demoUsers';
+import {
+  PostgresHealth,
+  checkPostgresHealth,
+  fetchPostgresQuotes,
+  fetchPostgresCompanies,
+  savePostgresQuote,
+  updatePostgresQuoteStatus,
+  savePostgresCompany,
+  savePostgresUser,
+} from '../lib/postgresClient';
 
 export interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
   companyId?: string;
-  title?: string;
   avatarUrl?: string;
+  title?: string;
 }
 
 interface AppContextType {
@@ -62,6 +72,11 @@ interface AppContextType {
   getCustomAvatar: (role: UserRole, email?: string) => string;
   isProfileModalOpen: boolean;
   setIsProfileModalOpen: (open: boolean) => void;
+
+  // PostgreSQL Local Database Integration
+  isPostgresConnected: boolean;
+  postgresHealth: PostgresHealth | null;
+  syncWithPostgres: () => Promise<void>;
 
   activeView: string;
   setActiveView: (view: string, quoteId?: string | null) => void;
@@ -659,11 +674,157 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => window.removeEventListener('storage', handleStorageEvent);
   }, []);
 
+  // PostgreSQL 18 Database Integration State & Polling
+  const [isPostgresConnected, setIsPostgresConnected] = useState<boolean>(false);
+  const [postgresHealth, setPostgresHealth] = useState<PostgresHealth | null>(null);
+
+  const syncWithPostgres = async () => {
+    try {
+      const health = await checkPostgresHealth();
+      setPostgresHealth(health);
+      setIsPostgresConnected(health.connected);
+
+      if (health.connected) {
+        // Fetch live quotes from PostgreSQL
+        const dbQuotes = await fetchPostgresQuotes();
+        if (dbQuotes && Array.isArray(dbQuotes) && dbQuotes.length > 0) {
+          setQuotes((prev) => {
+            const dbMap = new Map(dbQuotes.map((dq: any) => [dq.id, dq]));
+            const merged = prev.map((localQuote) => {
+              const fromDb = dbMap.get(localQuote.id) || dbQuotes.find((dq: any) => dq.quote_number === localQuote.id);
+              if (fromDb) {
+                return {
+                  ...localQuote,
+                  status: fromDb.status || localQuote.status,
+                  totalNetAmount: parseFloat(fromDb.total_net_price) || localQuote.totalNetAmount,
+                  riskLevel: fromDb.risk_level || localQuote.riskLevel,
+                };
+              }
+              return localQuote;
+            });
+            const localIds = new Set(prev.map((q) => q.id));
+            for (const dq of dbQuotes) {
+              if (!localIds.has(dq.id)) {
+                merged.push({
+                  id: dq.id,
+                  companyId: dq.company_id || 'comp-1',
+                  companyName: dq.company_name || 'Enterprise Client',
+                  tier: 'Gold',
+                  salesRep: 'Rajesh Sharma',
+                  status: dq.status || 'Draft',
+                  blendedRiskScore: parseFloat(dq.blended_risk_score) || 0,
+                  riskLevel: dq.risk_level || 'LOW',
+                  riskBreakdown: {
+                    serviceDeviationPts: 0,
+                    marginErosionPts: 0,
+                    tierRiskPts: 0.5,
+                    totalScore: 0.5,
+                    reasons: ['Synced from PostgreSQL 18 Local Database'],
+                  },
+                  totalListAmount: parseFloat(dq.total_list_price) || 0,
+                  totalDiscountAmount: parseFloat(dq.total_discount_amount) || 0,
+                  totalNetAmount: parseFloat(dq.total_net_price) || 0,
+                  overallMarginPercent: parseFloat(dq.margin_percentage) || 0,
+                  approvalStage: 'None',
+                  approvalAssignedTo: 'Auto-Approved',
+                  dealConfidence: parseFloat(dq.deal_confidence) || 85,
+                  lines: dq.lines && Array.isArray(dq.lines) ? dq.lines.map((l: any) => ({
+                    id: l.id,
+                    productId: l.productId || l.product_id,
+                    productName: 'Enterprise Item',
+                    quantity: parseInt(l.quantity, 10) || 1,
+                    unitListPrice: parseFloat(l.unitPrice || l.unit_price) || 0,
+                    unitCostPrice: parseFloat(l.unitCost || l.unit_cost) || 0,
+                    discountPercent: parseFloat(l.discountPercent || l.discount_percent) || 0,
+                    discountCeiling: 15,
+                    netAmount: parseFloat(l.netPrice || l.net_price) || 0,
+                    marginPercent: 30,
+                    isOverLimit: false,
+                    overLimitPoints: 0,
+                  })) : [],
+                  createdAt: dq.created_at || new Date().toISOString(),
+                  updatedAt: dq.updated_at || new Date().toISOString(),
+                  promisedDeliveryDate: '2026-10-15',
+                  portalToken: `token_${dq.company_id || 'acme'}`,
+                  deliveryAddress: {
+                    contactName: (dq.company_name || 'Enterprise') + ' Lead',
+                    contactPhone: '+91 98250 00000',
+                    contactEmail: 'contact@enterprise.in',
+                    addressLine1: 'Industrial Zone, Phase 1',
+                    city: 'Ahmedabad',
+                    state: 'Gujarat',
+                    postalCode: '380015',
+                    country: 'India',
+                  },
+                  revisionHistory: [
+                    {
+                      version: 1,
+                      updatedBy: 'Rajesh Sharma',
+                      timestamp: dq.created_at || new Date().toISOString(),
+                      promisedDeliveryDate: '2026-10-15',
+                      discountSummary: 'Imported from PostgreSQL 18 Local Database',
+                      status: dq.status || 'Draft',
+                    },
+                  ],
+                });
+              }
+            }
+            return merged;
+          });
+        }
+
+        // Fetch live companies from PostgreSQL
+        const dbCompanies = await fetchPostgresCompanies();
+        if (dbCompanies && Array.isArray(dbCompanies) && dbCompanies.length > 0) {
+          setCompanies((prev) => {
+            const localIds = new Set(prev.map((c) => c.id));
+            const newComps: Company[] = [];
+            for (const dc of dbCompanies) {
+              if (!localIds.has(dc.id)) {
+                newComps.push({
+                  id: dc.id,
+                  name: dc.name,
+                  tierId: dc.tier_id === 'tier-1' ? 'Gold' : dc.tier_id === 'tier-3' ? 'Bronze' : 'Silver',
+                  industry: dc.industry || 'Technology',
+                  creditLimit: parseFloat(dc.credit_limit) || 1000000,
+                  contactEmail: dc.contact_email,
+                  portalToken: dc.portal_token,
+                  historicalCloseRate: parseFloat(dc.historical_close_rate) || 80,
+                  historicalAvgDiscount: parseFloat(dc.historical_avg_discount) || 8,
+                });
+              }
+            }
+            return newComps.length > 0 ? [...prev, ...newComps] : prev;
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[PostgreSQL Sync Error]:', err);
+    }
+  };
+
+  useEffect(() => {
+    syncWithPostgres();
+    const interval = setInterval(() => {
+      checkPostgresHealth().then((h) => {
+        setIsPostgresConnected(h.connected);
+        setPostgresHealth(h);
+      });
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
   const broadcastSync = (type: string, data: any) => {
     localStorage.setItem(
       'dealflow_sync_event',
       JSON.stringify({ type, timestamp: Date.now(), ...data })
     );
+    // If PostgreSQL is connected and a quote was updated, synchronize it directly to PostgreSQL
+    if (type === 'QUOTE_UPDATED' && data?.quote) {
+      savePostgresQuote(data.quote).catch((err) =>
+        console.warn('[PostgreSQL Save Error]:', err)
+      );
+    }
   };
 
   const sendMessage = (
@@ -700,10 +861,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addUser = (newUser: DemoUser) => {
     setUsers((prev) => [newUser, ...prev]);
+    savePostgresUser(newUser).catch((err) => console.warn('[PostgreSQL User Save Error]:', err));
   };
 
   const addCompany = (newCompany: Company) => {
     setCompanies((prev) => [newCompany, ...prev]);
+    savePostgresCompany(newCompany).catch((err) => console.warn('[PostgreSQL Company Save Error]:', err));
   };
 
   const addProduct = (newProduct: Product) => {
@@ -857,6 +1020,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     setQuotes((prev) => [newQuote, ...prev]);
+    savePostgresQuote(newQuote).catch((err) => console.warn('[PostgreSQL Save Error]:', err));
     setSelectedQuoteId(newId);
     setActiveView('builder');
     addCustomAuditLog(newId, currentUser?.name || 'Sales Rep (P. Mehta)', 'Draft Quote Created', { company: company.name });
@@ -1585,6 +1749,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getCustomAvatar,
         isProfileModalOpen,
         setIsProfileModalOpen,
+        isPostgresConnected,
+        postgresHealth,
+        syncWithPostgres,
         activeView,
         setActiveView,
         selectedQuoteId,

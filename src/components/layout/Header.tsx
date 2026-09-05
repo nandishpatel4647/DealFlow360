@@ -8,6 +8,7 @@ import {
   LogOut,
   ChevronRight,
   ShieldAlert,
+  Database,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { UserRole } from '../../types';
@@ -29,6 +30,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
     resetToSeedData,
     logout,
     currentUser,
+    isPostgresConnected,
+    postgresHealth,
+    syncWithPostgres,
   } = useAppStore();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -104,6 +108,56 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
             }}
             className="pl-9 pr-4 py-1.5 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 outline-none focus:border-blue-600 focus:bg-white w-52 transition font-medium"
           />
+        </div>
+
+        {/* PostgreSQL 18 Local DB Indicator Badge */}
+        <div
+          onClick={() => {
+            syncWithPostgres();
+          }}
+          title={
+            isPostgresConnected
+              ? `Connected to PostgreSQL 18.6 (${postgresHealth?.dbName || 'dealflow360'} on localhost:5432). Click to force sync.`
+              : 'PostgreSQL disconnected. Click to retry connection.'
+          }
+          className={`hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition shadow-2xs card-3d group relative ${
+            isPostgresConnected
+              ? 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-300 text-emerald-800'
+              : 'bg-amber-50 hover:bg-amber-100/80 border-amber-300 text-amber-800'
+          }`}
+        >
+          <Database className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-extrabold tracking-tight">
+              {isPostgresConnected ? 'PostgreSQL 18' : 'PostgreSQL Syncing'}
+            </span>
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                isPostgresConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
+              }`}
+            />
+          </div>
+
+          {/* Hover Tooltip / Status Popover */}
+          <div className="absolute top-[calc(100%+8px)] right-0 hidden group-hover:flex flex-col w-72 p-3 rounded-xl bg-slate-950 text-white shadow-2xl z-50 text-[11px] space-y-1.5 border border-slate-700 pointer-events-none text-left">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+              <span className="font-extrabold flex items-center gap-1 text-white">
+                <Database className="w-3.5 h-3.5 text-emerald-400" /> PostgreSQL 18 Local
+              </span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700 font-bold">
+                {isPostgresConnected ? 'ONLINE' : 'CONNECTING'}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-300 font-mono space-y-0.5">
+              <div>Host: <span className="text-white">localhost:5432</span></div>
+              <div>Database: <span className="text-white">dealflow360</span></div>
+              <div>Engine: <span className="text-emerald-300">PostgreSQL 18.6 (Local)</span></div>
+              <div>Architecture: <span className="text-amber-300">100% Local / No Cloud</span></div>
+            </div>
+            <div className="text-[10px] text-blue-300/90 pt-1 border-t border-slate-800">
+              ⚡ Quotes, lines, and company data sync with PostgreSQL in real time. Click to force sync.
+            </div>
+          </div>
         </div>
 
         {/* Reset Demo State Button */}
