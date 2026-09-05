@@ -232,3 +232,24 @@ export interface ConfigPolicy {
   };
   warehouseFreightWeights: Record<string, { base: number; perUnit: number }>;
 }
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatar: string;
+  title: string;
+  department: string;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  type: 'approval' | 'negotiation' | 'fulfillment' | 'billing' | 'anomaly';
+  read: boolean;
+  quoteId?: string;
+}
+

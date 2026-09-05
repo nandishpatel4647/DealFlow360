@@ -10,6 +10,8 @@ import {
   Invoice,
   DealAnomaly,
   AuditLog,
+  UserProfile,
+  AppNotification,
 } from '../types';
 
 export const SEED_CUSTOMER_TIERS: CustomerTier[] = [
@@ -601,3 +603,90 @@ export const SEED_AUDIT_LOGS: AuditLog[] = [
     createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
   },
 ];
+
+export const SEED_USERS: UserProfile[] = [
+  {
+    id: 'user-rep',
+    name: 'Priyansh Mehta',
+    email: 'p.mehta@dealflow360.com',
+    role: 'sales_rep',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    title: 'Senior Enterprise Sales Executive',
+    department: 'Commercial Sales',
+  },
+  {
+    id: 'user-mgr',
+    name: 'Meet Shah',
+    email: 'm.shah@dealflow360.com',
+    role: 'sales_manager',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    title: 'VP of Commercial Sales',
+    department: 'Sales Governance & Risk',
+  },
+  {
+    id: 'user-fin',
+    name: 'Rajesh Iyer',
+    email: 'r.iyer@dealflow360.com',
+    role: 'finance',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    title: 'Chief Financial Officer',
+    department: 'Corporate Finance & Treasury',
+  },
+  {
+    id: 'user-cust',
+    name: 'Johnathan Vance',
+    email: 'jvance@acmeindustries.in',
+    role: 'customer',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    title: 'VP Strategic Procurement',
+    department: 'Acme Industries (Gold Tier)',
+  },
+  {
+    id: 'user-admin',
+    name: 'Ops Admin',
+    email: 'ops@dealflow360.com',
+    role: 'admin',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    title: 'Platform Operations Administrator',
+    department: 'Revenue Operations',
+  },
+];
+
+export const SEED_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: 'notif-1',
+    title: 'High-Risk Deal Flagged',
+    message: 'Q-1042 (Acme Industries) has an 18% service discount exceeding the 10% ceiling. Two-tier approval required.',
+    timestamp: '10m ago',
+    type: 'approval',
+    read: false,
+    quoteId: 'Q-1042',
+  },
+  {
+    id: 'notif-2',
+    title: 'Inventory Allocation Optimized',
+    message: 'Warehouse split generated for Q-1035: 12 units from Ahmedabad Hub, 8 units from Surat Depot.',
+    timestamp: '1h ago',
+    type: 'fulfillment',
+    read: false,
+    quoteId: 'Q-1035',
+  },
+  {
+    id: 'notif-3',
+    title: 'Deal Anomaly Detected',
+    message: 'NovaTech Systems (Q-1039) has been inactive in Pending Manager stage for 6 days.',
+    timestamp: '2h ago',
+    type: 'anomaly',
+    read: true,
+    quoteId: 'Q-1039',
+  },
+  {
+    id: 'notif-4',
+    title: 'Invoice Payment Recorded',
+    message: 'INV-501031 (₹5,21,088) marked as fully settled for Orbit Manufacturing.',
+    timestamp: '3h ago',
+    type: 'billing',
+    read: true,
+  },
+];
+

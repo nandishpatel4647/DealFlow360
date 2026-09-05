@@ -13,6 +13,8 @@ import {
   AuditLog,
   ConfigPolicy,
   WarehouseAllocation,
+  UserProfile,
+  AppNotification,
 } from '../types';
 import {
   SEED_COMPANIES,
@@ -23,6 +25,8 @@ import {
   SEED_INVOICES,
   SEED_SUBSCRIPTIONS,
   SEED_AUDIT_LOGS,
+  SEED_USERS,
+  SEED_NOTIFICATIONS,
 } from '../data/seedData';
 import { DEFAULT_CONFIG_POLICY, evaluateBlendedRisk } from '../logic/riskEngine';
 import { calculateQuoteTotals, calculateLineMetrics } from '../logic/pricingEngine';
@@ -32,14 +36,28 @@ import { generateHybridBilling } from '../logic/billingEngine';
 import { calculateDealCloseConfidence } from '../logic/aiEngine';
 
 interface AppContextType {
+  currentRoute: 'landing' | 'app';
+  setCurrentRoute: (route: 'landing' | 'app') => void;
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
+  activeUser: UserProfile;
+  users: UserProfile[];
+  loginAsRole: (role: UserRole) => void;
+  logout: () => void;
   activeView: string;
   setActiveView: (view: string) => void;
   selectedQuoteId: string | null;
   setSelectedQuoteId: (id: string | null) => void;
   customerPortalToken: string | null;
   setCustomerPortalToken: (token: string | null) => void;
+
+  // Notifications & Global Search
+  notifications: AppNotification[];
+  unreadNotificationCount: number;
+  markNotificationRead: (id: string) => void;
+  clearNotifications: () => void;
+  isGlobalSearchOpen: boolean;
+  setIsGlobalSearchOpen: (open: boolean) => void;
 
   // Data
   companies: Company[];
@@ -81,8 +99,13 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [currentRoute, setCurrentRoute] = useState<'landing' | 'app'>('app');
+  const [users] = useState<UserProfile[]>(SEED_USERS);
   const [userRole, setUserRole] = useState<UserRole>('sales_rep');
+  const [activeUser, setActiveUser] = useState<UserProfile>(SEED_USERS[0]);
   const [activeView, setActiveView] = useState<string>('dashboard');
+  const [notifications, setNotifications] = useState<AppNotification[]>(SEED_NOTIFICATIONS);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState<boolean>(false);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>('Q-1042');
   const [customerPortalToken, setCustomerPortalToken] = useState<string | null>('token_acme');
 
@@ -531,32 +554,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
-  // Accept Fulfillment Split & Auto-generate Hybrid Invoice
+  // Accept Fulfillment Split & Auto-generate Hybrid Invoice (Guarded by business state)
   const acceptFulfillment = (quoteId: string) => {
-    setQuotes((prev) =>
-      prev.map((q) => {
-        if (q.id !== quoteId) return q;
+    const q = quotes.find((quote) => quote.id === quoteId);
+    if (!q) return;
 
-        const fulfillmentPlan = generateOptimalFulfillment(quoteId, q.lines, warehouses, inventory);
-        const { invoice, subscriptions: newSubs } = generateHybridBilling(q);
+    // Strict business state guard
+    if (q.status !== 'Fully Approved' && q.status !== 'Fulfillment') {
+      alert(
+        `Commercial Governance Guard: Deal "${quoteId}" cannot proceed to Fulfillment because its status is "${q.status}". High-risk and negotiated deals must be Fully Approved and Customer Confirmed first.`
+      );
+      return;
+    }
 
-        setInvoices((invs) => [invoice, ...invs]);
-        setSubscriptions((subs) => [...newSubs, ...subs]);
+    const fulfillmentPlan = generateOptimalFulfillment(quoteId, q.lines, warehouses, inventory);
+    const { invoice, subscriptions: newSubs } = generateHybridBilling(q);
 
-        addCustomAuditLog(quoteId, 'Operations Fulfillment Engine', 'Fulfillment Allocation Accepted', {
-          shipments: fulfillmentPlan.totalShipments,
-          freightCost: `₹${fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}`,
-          invoiceGenerated: invoice.id,
-        });
+    setInvoices((invs) => [invoice, ...invs]);
+    setSubscriptions((subs) => [...newSubs, ...subs]);
 
-        const updated: Quote = {
-          ...q,
-          status: 'Invoiced',
-        };
-        broadcastSync('QUOTE_UPDATED', { quote: updated });
-        return updated;
-      })
-    );
+    addCustomAuditLog(quoteId, 'Operations Fulfillment Engine', 'Fulfillment Allocation Accepted', {
+      shipments: fulfillmentPlan.totalShipments,
+      freightCost: `₹${fulfillmentPlan.totalFreightCost.toLocaleString('en-IN')}`,
+      invoiceGenerated: invoice.id,
+    });
+
+    const updated: Quote = {
+      ...q,
+      status: 'Invoiced',
+    };
+    setQuotes((prev) => prev.map((quote) => (quote.id === quoteId ? updated : quote)));
+    broadcastSync('QUOTE_UPDATED', { quote: updated });
   };
 
   // Record Invoice Payment
@@ -605,6 +633,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
+  // 1-Click Role Login with role-specific views
+  const loginAsRole = (role: UserRole) => {
+    const targetUser = users.find((u) => u.role === role) || users[0];
+    setUserRole(role);
+    setActiveUser(targetUser);
+    setCurrentRoute('app');
+
+    // Adapt view to role
+    if (role === 'customer') {
+      setActiveView('portal');
+      setCustomerPortalToken('token_acme');
+      setSelectedQuoteId('Q-1042');
+    } else if (role === 'sales_manager' || role === 'finance') {
+      setActiveView('approvals');
+    } else if (role === 'admin') {
+      setActiveView('admin_config');
+    } else {
+      setActiveView('dashboard');
+    }
+  };
+
+  const logout = () => {
+    setCurrentRoute('landing');
+  };
+
+  const markNotificationRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const clearNotifications = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+
   const resetToSeedData = () => {
     setCompanies(SEED_COMPANIES);
     setProducts(SEED_PRODUCTS);
@@ -616,20 +681,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAuditLogs(SEED_AUDIT_LOGS);
     setAnomalies(scanDealAnomalies(SEED_QUOTES));
     setConfigPolicy(DEFAULT_CONFIG_POLICY);
+    setNotifications(SEED_NOTIFICATIONS);
     setSelectedQuoteId('Q-1042');
   };
 
   return (
     <AppContext.Provider
       value={{
+        currentRoute,
+        setCurrentRoute,
         userRole,
         setUserRole,
+        activeUser,
+        users,
+        loginAsRole,
+        logout,
         activeView,
         setActiveView,
         selectedQuoteId,
         setSelectedQuoteId,
         customerPortalToken,
         setCustomerPortalToken,
+        notifications,
+        unreadNotificationCount,
+        markNotificationRead,
+        clearNotifications,
+        isGlobalSearchOpen,
+        setIsGlobalSearchOpen,
         companies,
         products,
         warehouses,
