@@ -1,9 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { pool } from './db.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -28,11 +34,12 @@ app.get('/api/health', async (req, res) => {
       }
     }
 
+    const isCloud = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
     res.json({
       status: 'healthy',
-      database: 'PostgreSQL 18 Local',
-      engine: 'PostgreSQL 18.6 (x86_64-windows)',
-      host: process.env.PGHOST || 'localhost',
+      database: isCloud ? 'Cloud PostgreSQL' : 'PostgreSQL 18 Local',
+      engine: result.rows[0].version ? result.rows[0].version.split(',')[0] : 'PostgreSQL',
+      host: isCloud ? 'Cloud Managed' : (process.env.PGHOST || 'localhost'),
       port: process.env.PGPORT || 5432,
       dbName: process.env.PGDATABASE || 'dealflow360',
       timestamp: result.rows[0].current_time,
@@ -516,7 +523,26 @@ app.post('/api/audit-logs', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✓ DealFlow360 PostgreSQL API Server running on http://localhost:${PORT}`);
-  console.log(`✓ Database: PostgreSQL 18 Local (localhost:5432 / dealflow360)`);
+// Database auto-initializer / migration runner for cloud deployments
+app.all('/api/init-db', async (req, res) => {
+  try {
+    const schemaPath = path.resolve(__dirname, '../database/schema.sql');
+    if (!fs.existsSync(schemaPath)) {
+      return res.status(404).json({ error: 'schema.sql not found' });
+    }
+    const schemaSql = fs.readFileSync(schemaPath, 'utf-8');
+    await pool.query(schemaSql);
+    res.json({ success: true, message: 'Database schema and seed data initialized successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
+
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`✓ DealFlow360 PostgreSQL API Server running on http://localhost:${PORT}`);
+    console.log(`✓ Database: ${process.env.DATABASE_URL ? 'Cloud PostgreSQL' : 'PostgreSQL 18 Local'}`);
+  });
+}
+
+export default app;
