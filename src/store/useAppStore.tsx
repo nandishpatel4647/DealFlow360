@@ -58,6 +58,10 @@ export interface AuthUser {
   companyId?: string;
   avatarUrl?: string;
   title?: string;
+  phoneNumber?: string;
+  address?: DeliveryAddress;
+  gstin?: string;
+  contactPerson?: string;
 }
 
 interface AppContextType {
@@ -70,7 +74,26 @@ interface AppContextType {
   loginAsCustomer: (token: string) => void;
   logout: () => void;
 
-  updateUserProfile: (updates: { name?: string; title?: string; avatarUrl?: string }) => void;
+  updateUserProfile: (updates: {
+    name?: string;
+    title?: string;
+    avatarUrl?: string;
+    phoneNumber?: string;
+    address?: DeliveryAddress;
+    gstin?: string;
+  }) => void;
+  updateCustomerCompanyProfile: (
+    companyId: string,
+    updates: {
+      contactPerson?: string;
+      name?: string;
+      phoneNumber?: string;
+      contactEmail?: string;
+      avatarUrl?: string;
+      address?: DeliveryAddress;
+      gstin?: string;
+    }
+  ) => void;
   resetUserAvatar: () => void;
   getCustomAvatar: (role: UserRole, email?: string) => string;
   isProfileModalOpen: boolean;
@@ -162,17 +185,73 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
     id: 'msg-2',
     quoteId: 'Q-1042',
     sender: 'customer',
-    senderName: 'Acme Procurement',
+    senderName: 'Rajesh Verma (Acme)',
     text: 'Thanks P. Mehta. We are reviewing the Installation & Setup line item discounts and requested delivery date.',
     timestamp: '11:30 AM',
   },
   {
     id: 'msg-3',
+    quoteId: 'Q-1039',
+    sender: 'rep',
+    senderName: 'A. Sharma (Sales Rep)',
+    text: 'Hello Priya, proposal Q-1039 for NovaTech Systems is ready. We have configured the high-availability server cluster.',
+    timestamp: '09:45 AM',
+  },
+  {
+    id: 'msg-4',
+    quoteId: 'Q-1039',
+    sender: 'customer',
+    senderName: 'Priya Sharma (NovaTech)',
+    text: 'Could you review the software subscription line? We are requesting 30-day net payment terms.',
+    timestamp: '10:20 AM',
+  },
+  {
+    id: 'msg-5',
+    quoteId: 'Q-1035',
+    sender: 'rep',
+    senderName: 'P. Mehta (Sales Rep)',
+    text: 'Quotation Q-1035 for Zenith Retail has entered fulfillment dispatch from Mumbai Logistics Center.',
+    timestamp: '01:10 PM',
+  },
+  {
+    id: 'msg-6',
+    quoteId: 'Q-1035',
+    sender: 'customer',
+    senderName: 'Anand Kulkarni (Zenith)',
+    text: 'Noted! Please confirm dispatch tracking number once shipment departs.',
+    timestamp: '01:45 PM',
+  },
+  {
+    id: 'msg-7',
     quoteId: 'Q-1040',
     sender: 'customer',
-    senderName: 'Vertex Labs Procurement',
-    text: 'Can we reduce the consulting fee by 15% for long term engagement?',
+    senderName: 'Dr. Anita Desai (Vertex)',
+    text: 'Can we reduce the biotech consulting fee by 15% for annual engagement?',
     timestamp: '02:15 PM',
+  },
+  {
+    id: 'msg-8',
+    quoteId: 'Q-1040',
+    sender: 'rep',
+    senderName: 'V. Patel (Sales Rep)',
+    text: 'Hello Dr. Desai, submitting revision request to sales management for commercial approval.',
+    timestamp: '02:40 PM',
+  },
+  {
+    id: 'msg-9',
+    quoteId: 'Q-1031',
+    sender: 'rep',
+    senderName: 'P. Mehta (Sales Rep)',
+    text: 'Tax invoice INV-5016 generated for Orbit Manufacturing. Ready for settlement.',
+    timestamp: '03:15 PM',
+  },
+  {
+    id: 'msg-10',
+    quoteId: 'Q-1031',
+    sender: 'customer',
+    senderName: 'Vikramaditya Patel (Orbit)',
+    text: 'Finance desk has approved the invoice. Payment is scheduled.',
+    timestamp: '03:50 PM',
   },
 ];
 
@@ -266,18 +345,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const matched = findDemoUser(email) || DEMO_USERS.find((u) => u.role === assignedRole);
     const customAvatar = getCustomAvatar(assignedRole, email);
 
+    let compId = matched?.companyId;
+    let matchedCompany = compId ? companies.find((c) => c.id === compId) : undefined;
+    if (!matchedCompany && assignedRole === 'customer') {
+      matchedCompany =
+        companies.find((c) => c.contactEmail.toLowerCase() === email.toLowerCase()) ||
+        companies.find((c) => c.portalToken === matched?.portalToken) ||
+        companies[0];
+      compId = matchedCompany?.id;
+    }
+
     const user: AuthUser = {
       email,
-      name: matched?.name || email.split('@')[0],
+      name: matched?.name || matchedCompany?.contactPerson || email.split('@')[0],
       role: assignedRole,
-      title: matched?.title || 'Staff Specialist',
-      companyId: matched?.companyId,
-      avatarUrl: customAvatar,
+      title: matched?.title || (matchedCompany ? `Client Account (${matchedCompany.name})` : 'Staff Specialist'),
+      companyId: compId,
+      avatarUrl: customAvatar || matched?.avatarUrl,
+      phoneNumber: matched?.phoneNumber || matchedCompany?.phoneNumber,
+      address: matched?.address || matchedCompany?.address,
+      gstin: matched?.gstin || matchedCompany?.gstin,
+      contactPerson: matchedCompany?.contactPerson || matched?.name,
     };
 
     setIsAuthenticated(true);
     setCurrentUser(user);
     setUserRoleState(assignedRole);
+    if (assignedRole === 'customer') {
+      if (matchedCompany?.portalToken) {
+        setCustomerPortalToken(matchedCompany.portalToken);
+      }
+      const matchingQuote = quotes.find((q) => q.companyId === compId);
+      if (matchingQuote) {
+        setSelectedQuoteId(matchingQuote.id);
+      }
+    }
     setActiveView(assignedRole === 'customer' ? 'portal' : 'dashboard');
 
     localStorage.setItem(
@@ -487,13 +589,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   });
 
-  const updateUserProfile = (updates: { name?: string; title?: string; avatarUrl?: string }) => {
+  const updateUserProfile = (updates: {
+    name?: string;
+    title?: string;
+    avatarUrl?: string;
+    phoneNumber?: string;
+    address?: DeliveryAddress;
+    gstin?: string;
+  }) => {
     if (!currentUser) return;
     const updated: AuthUser = {
       ...currentUser,
       ...(updates.name ? { name: updates.name } : {}),
       ...(updates.title ? { title: updates.title } : {}),
       ...(updates.avatarUrl ? { avatarUrl: updates.avatarUrl } : {}),
+      ...(updates.phoneNumber ? { phoneNumber: updates.phoneNumber } : {}),
+      ...(updates.address ? { address: updates.address } : {}),
+      ...(updates.gstin ? { gstin: updates.gstin } : {}),
     };
     setCurrentUser(updated);
 
@@ -506,11 +618,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...(updates.name ? { name: updates.name } : {}),
             ...(updates.title ? { title: updates.title } : {}),
             ...(updates.avatarUrl ? { avatarUrl: updates.avatarUrl } : {}),
+            ...(updates.phoneNumber ? { phoneNumber: updates.phoneNumber } : {}),
+            ...(updates.address ? { address: updates.address } : {}),
           };
         }
         return u;
       })
     );
+
+    // If customer, also synchronize matched company
+    if (currentUser.role === 'customer' && currentUser.companyId) {
+      setCompanies((prev) =>
+        prev.map((c) => {
+          if (c.id !== currentUser.companyId) return c;
+          return {
+            ...c,
+            contactPerson: updates.name || c.contactPerson,
+            phoneNumber: updates.phoneNumber || c.phoneNumber,
+            address: updates.address || c.address,
+            gstin: updates.gstin || c.gstin,
+          };
+        })
+      );
+    }
 
     if (updates.avatarUrl) {
       try {
@@ -557,6 +687,96 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.setItem(
       AUTH_STORAGE_KEY,
       JSON.stringify({ isAuthenticated, currentUser: updated, userRole: currentUser.role })
+    );
+  };
+
+  const updateCustomerCompanyProfile = (
+    companyId: string,
+    updates: {
+      contactPerson?: string;
+      name?: string;
+      phoneNumber?: string;
+      contactEmail?: string;
+      avatarUrl?: string;
+      address?: DeliveryAddress;
+      gstin?: string;
+    }
+  ) => {
+    // 1. Update company in companies state
+    setCompanies((prev) =>
+      prev.map((c) => {
+        if (c.id !== companyId && c.contactEmail?.toLowerCase() !== currentUser?.email?.toLowerCase()) return c;
+        return {
+          ...c,
+          name: updates.name || c.name,
+          contactEmail: updates.contactEmail || c.contactEmail,
+          phoneNumber: updates.phoneNumber || c.phoneNumber,
+          gstin: updates.gstin || c.gstin,
+          address: updates.address || c.address,
+          contactPerson: updates.contactPerson || c.contactPerson,
+        };
+      })
+    );
+
+    // 2. Update currentUser in store and localStorage
+    if (currentUser) {
+      const updatedUser: AuthUser = {
+        ...currentUser,
+        name: updates.contactPerson || updates.name || currentUser.name,
+        email: updates.contactEmail || currentUser.email,
+        phoneNumber: updates.phoneNumber || currentUser.phoneNumber,
+        avatarUrl: updates.avatarUrl || currentUser.avatarUrl,
+        address: updates.address || currentUser.address,
+        gstin: updates.gstin || currentUser.gstin,
+        title: updates.name ? `Client Account (${updates.name})` : currentUser.title,
+      };
+      setCurrentUser(updatedUser);
+      localStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({ isAuthenticated: true, currentUser: updatedUser, userRole: currentUser.role })
+      );
+    }
+
+    // 3. Update delivery address on active quotes for this company
+    if (updates.address) {
+      setQuotes((prev) =>
+        prev.map((q) => {
+          if (q.companyId !== companyId) return q;
+          return {
+            ...q,
+            deliveryAddress: {
+              ...q.deliveryAddress,
+              ...updates.address,
+              contactName: updates.contactPerson || q.deliveryAddress?.contactName || updates.name || '',
+              contactPhone: updates.phoneNumber || q.deliveryAddress?.contactPhone || '',
+              contactEmail: updates.contactEmail || q.deliveryAddress?.contactEmail || '',
+            },
+            updatedAt: new Date().toISOString(),
+          };
+        })
+      );
+    }
+
+    // 4. Update users array
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.companyId === companyId || (currentUser && u.email === currentUser.email)) {
+          return {
+            ...u,
+            name: updates.contactPerson || updates.name || u.name,
+            avatarUrl: updates.avatarUrl || u.avatarUrl,
+            phoneNumber: updates.phoneNumber || u.phoneNumber,
+            address: updates.address || u.address,
+          };
+        }
+        return u;
+      })
+    );
+
+    addCustomAuditLog(
+      companyId,
+      currentUser?.name || 'Customer User',
+      'Updated Customer Profile, Contact Number, and Billing Address'
     );
   };
 
@@ -1772,6 +1992,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         loginAsCustomer,
         logout,
         updateUserProfile,
+        updateCustomerCompanyProfile,
         resetUserAvatar,
         getCustomAvatar,
         isProfileModalOpen,

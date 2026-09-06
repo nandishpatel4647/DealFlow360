@@ -9,6 +9,18 @@ export interface CustomerTier {
   paymentTerms: string;
 }
 
+export interface DeliveryAddress {
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -17,6 +29,10 @@ export interface Company {
   creditLimit: number;
   contactEmail: string;
   portalToken: string;
+  contactPerson?: string;
+  phoneNumber?: string;
+  address?: DeliveryAddress;
+  gstin?: string;
   historicalCloseRate?: number;
   historicalAvgDiscount?: number;
 }
@@ -135,17 +151,7 @@ export interface RiskBreakdown {
   reasons: string[];
 }
 
-export interface DeliveryAddress {
-  contactName: string;
-  contactPhone: string;
-  contactEmail: string;
-  addressLine1: string;
-  addressLine2?: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-}
+
 
 export interface CustomerRevisionRequestLine {
   lineId: string;
