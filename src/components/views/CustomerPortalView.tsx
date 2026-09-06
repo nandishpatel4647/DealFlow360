@@ -49,6 +49,7 @@ export const CustomerPortalView: React.FC = () => {
     sendMessage,
     recordPayment,
     setIsProfileModalOpen,
+    loginAsCustomer,
   } = useAppStore();
 
   const getTabFromHash = (): 'quotation' | 'messages' | 'invoices' | 'profile' => {
@@ -360,7 +361,10 @@ export const CustomerPortalView: React.FC = () => {
               <span className="text-blue-100 font-semibold">Account:</span>
               <select
                 value={customerPortalToken || 'token_acme'}
-                onChange={(e) => setCustomerPortalToken(e.target.value)}
+                onChange={(e) => {
+                  // FULL context switch: updates currentUser, companyId, selectedQuote, invoices scope
+                  loginAsCustomer(e.target.value);
+                }}
                 className="bg-transparent font-bold text-white outline-none cursor-pointer"
               >
                 {companies.map((c) => (

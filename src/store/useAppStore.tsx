@@ -333,8 +333,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const matched = DEMO_USERS.find((u) => u.role === role);
     const email = matched?.email || `${role}@dealflow360.com`;
     const password = matched?.password || 'demo123';
+    // For customer, use the first customer demo user's company token
     if (role === 'customer') {
-      loginAsCustomer('token_acme');
+      const customerUser = matched || DEMO_USERS.find((u) => u.role === 'customer');
+      const comp = companies.find((c) => c.id === customerUser?.companyId) || companies.find((c) => c.portalToken === customerUser?.portalToken);
+      loginAsCustomer(comp?.portalToken || 'token_acme');
     } else {
       login(email, password, role);
     }
@@ -388,24 +391,52 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   };
 
+  // LOGIN AS CUSTOMER VIA PORTAL TOKEN
+  // Resolves the FULL identity from DemoUser + Company, updates ALL dependent state
   const loginAsCustomer = (token: string) => {
-    const company = SEED_COMPANIES.find((c) => c.portalToken === token) || SEED_COMPANIES[0];
-    const customAvatar = getCustomAvatar('customer', company.contactEmail);
+    // 1. Find company by portal token (use LIVE state, not seed)
+    const company = companies.find((c) => c.portalToken === token) || SEED_COMPANIES.find((c) => c.portalToken === token);
+    if (!company) {
+      alert('Invalid portal token. No matching company found.');
+      return;
+    }
+
+    // 2. Find the matching DemoUser for this company (by companyId or portalToken)
+    const demoUser = DEMO_USERS.find((u) => u.companyId === company.id) ||
+      DEMO_USERS.find((u) => u.portalToken === token);
+    const customAvatar = getCustomAvatar('customer', demoUser?.email || company.contactEmail);
+
+    // 3. Build full identity AuthUser
     const user: AuthUser = {
-      email: company.contactEmail,
-      name: `${company.name} Procurement`,
+      email: demoUser?.email || company.contactEmail,
+      name: demoUser?.name || company.contactPerson || company.name,
       role: 'customer',
-      title: `Client Account (${company.name})`,
+      title: demoUser?.title || `Client Account (${company.name})`,
       companyId: company.id,
-      avatarUrl: customAvatar,
+      avatarUrl: customAvatar || demoUser?.avatarUrl,
+      phoneNumber: demoUser?.phoneNumber || company.phoneNumber,
+      address: demoUser?.address || company.address,
+      gstin: demoUser?.gstin || company.gstin,
+      contactPerson: company.contactPerson || demoUser?.name,
     };
 
+    // 4. Update ALL state atomically
     setIsAuthenticated(true);
     setCurrentUser(user);
     setUserRoleState('customer');
     setCustomerPortalToken(token);
+
+    // 5. Set selected quote to the first quote belonging to THIS company
+    const companyQuote = quotes.find((q) => q.companyId === company.id);
+    if (companyQuote) {
+      setSelectedQuoteId(companyQuote.id);
+    } else {
+      setSelectedQuoteId(null as any);
+    }
+
     setActiveView('portal');
 
+    // 6. Persist to localStorage
     localStorage.setItem(
       AUTH_STORAGE_KEY,
       JSON.stringify({ isAuthenticated: true, currentUser: user, userRole: 'customer' })
