@@ -176,3 +176,38 @@ export async function savePostgresUser(user: any): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Save or Upsert Product into PostgreSQL
+ */
+export async function savePostgresProduct(product: any): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[PostgreSQL] Failed to save product to DB:', err);
+    return false;
+  }
+}
+
+/**
+ * Save or Upsert Batch Products into PostgreSQL
+ */
+export async function savePostgresProductsBatch(products: any[]): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/products/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(products),
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[PostgreSQL] Failed to save batch products to DB:', err);
+    return false;
+  }
+}
+

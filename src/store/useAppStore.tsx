@@ -42,10 +42,13 @@ import {
   checkPostgresHealth,
   fetchPostgresQuotes,
   fetchPostgresCompanies,
+  fetchPostgresProducts,
   savePostgresQuote,
   updatePostgresQuoteStatus,
   savePostgresCompany,
   savePostgresUser,
+  savePostgresProduct,
+  savePostgresProductsBatch,
 } from '../lib/postgresClient';
 
 export interface AuthUser {
@@ -559,8 +562,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [companies, setCompanies] = useState<Company[]>(initialSaved?.companies || SEED_COMPANIES);
   const [products, setProducts] = useState<Product[]>(() => {
-    if (!initialSaved?.products) return SEED_PRODUCTS;
-    const mapped = initialSaved.products.map((p: Product) => {
+    const rawList = initialSaved?.products || SEED_PRODUCTS;
+    // Strictly sanitize and purge any accidental grocery items
+    const sanitized = rawList.filter(
+      (p: Product) => !['prod-bread', 'prod-milk', 'prod-butter'].includes(p.id) && !/bread|milk|butter|sourdough/i.test(p.name)
+    );
+    const mapped = sanitized.map((p: Product) => {
       const seed = SEED_PRODUCTS.find((sp) => sp.id === p.id);
       if (seed && p.listPrice <= 1500 && seed.listPrice >= 10000) {
         return {
@@ -580,16 +587,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return p;
     });
     const existingIds = new Set(mapped.map((p: Product) => p.id));
-    const missingSeed = SEED_PRODUCTS.filter((sp) => !existingIds.has(sp.id));
+    const missingSeed = SEED_PRODUCTS.filter((sp) => !existingIds.has(sp.id) && !['prod-bread', 'prod-milk', 'prod-butter'].includes(sp.id));
     return [...mapped, ...missingSeed];
   });
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialSaved?.warehouses || SEED_WAREHOUSES);
   const [inventory, setInventory] = useState<WarehouseInventory[]>(initialSaved?.inventory || SEED_INVENTORY);
   const [quotes, setQuotes] = useState<Quote[]>(() => {
-    if (!initialSaved?.quotes) return SEED_QUOTES;
-    const existingIds = new Set(initialSaved.quotes.map((q: Quote) => q.id));
+    const rawQuotes = initialSaved?.quotes || SEED_QUOTES;
+    // Clean out any lines referencing grocery items
+    const cleaned = rawQuotes.map((q: Quote) => ({
+      ...q,
+      lines: (q.lines || []).filter((l) => !['prod-bread', 'prod-milk', 'prod-butter'].includes(l.productId) && !/bread|milk|butter|sourdough/i.test(l.productName)),
+    }));
+    const existingIds = new Set(cleaned.map((q: Quote) => q.id));
     const missingSeedQuotes = SEED_QUOTES.filter((q) => !existingIds.has(q.id));
-    return [...initialSaved.quotes, ...missingSeedQuotes];
+    return [...cleaned, ...missingSeedQuotes];
   });
   const [invoices, setInvoices] = useState<Invoice[]>(initialSaved?.invoices || SEED_INVOICES);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(
@@ -685,6 +697,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setIsPostgresConnected(health.connected);
 
       if (health.connected) {
+        // Sync products catalog with PostgreSQL 18
+        fetchPostgresProducts().then((dbProducts) => {
+          if (dbProducts && Array.isArray(dbProducts)) {
+            const dbIds = new Set(dbProducts.map((dp: any) => dp.id));
+            const unsaved = products.filter(
+              (p) => !dbIds.has(p.id) && !['prod-bread', 'prod-milk', 'prod-butter'].includes(p.id)
+            );
+            if (unsaved.length > 0) {
+              savePostgresProductsBatch(unsaved).catch((err) => console.warn('[PostgreSQL Sync Batch Error]:', err));
+            }
+          }
+        }).catch((e) => console.warn('[PostgreSQL Products Sync Error]:', e));
+
         // Fetch live quotes from PostgreSQL
         const dbQuotes = await fetchPostgresQuotes();
         if (dbQuotes && Array.isArray(dbQuotes) && dbQuotes.length > 0) {
@@ -871,6 +896,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addProduct = (newProduct: Product) => {
     setProducts((prev) => [newProduct, ...prev]);
+    savePostgresProduct(newProduct).catch((err) => console.warn('[PostgreSQL Product Save Error]:', err));
     // Optionally initialize inventory across warehouses
     setInventory((prev) => [
       ...prev,
@@ -886,6 +912,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateProduct = (updatedProduct: Product) => {
     setProducts((prev) => prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
+    savePostgresProduct(updatedProduct).catch((err) => console.warn('[PostgreSQL Product Update Error]:', err));
   };
 
   const addWarehouse = (newWarehouse: Warehouse) => {

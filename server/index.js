@@ -61,24 +61,50 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   try {
-    const { id, name, category_id, list_price, cost_price, is_recurring, billing_period, sku, description } = req.body;
+    const {
+      id,
+      name,
+      category_id,
+      categoryId,
+      list_price,
+      listPrice,
+      cost_price,
+      costPrice,
+      is_recurring,
+      isRecurring,
+      billing_period,
+      billingPeriod,
+      sku,
+      description
+    } = req.body;
+
+    const catId = categoryId || category_id || 'hardware';
+    const listP = listPrice !== undefined ? listPrice : (list_price !== undefined ? list_price : 0);
+    const costP = costPrice !== undefined ? costPrice : (cost_price !== undefined ? cost_price : 0);
+    const isRec = isRecurring !== undefined ? isRecurring : (is_recurring !== undefined ? is_recurring : false);
+    const billPer = billingPeriod || billing_period || (isRec ? 'monthly' : 'one-time');
+
     const result = await pool.query(`
       INSERT INTO products (id, name, category_id, list_price, cost_price, is_recurring, billing_period, sku, description)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
+        category_id = EXCLUDED.category_id,
         list_price = EXCLUDED.list_price,
         cost_price = EXCLUDED.cost_price,
+        is_recurring = EXCLUDED.is_recurring,
+        billing_period = EXCLUDED.billing_period,
+        sku = EXCLUDED.sku,
         description = EXCLUDED.description
       RETURNING *
     `, [
       id || `prod-${Date.now()}`,
       name,
-      category_id || 'hardware',
-      list_price || 0,
-      cost_price || 0,
-      is_recurring || false,
-      billing_period || 'one-time',
+      catId,
+      listP,
+      costP,
+      isRec,
+      billPer,
       sku || `SKU-${Date.now().toString().slice(-4)}`,
       description || ''
     ]);
@@ -87,6 +113,51 @@ app.post('/api/products', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+app.post('/api/products/batch', async (req, res) => {
+  try {
+    const items = req.body;
+    if (!Array.isArray(items)) return res.status(400).json({ error: 'Expected array of products' });
+    const saved = [];
+    for (const p of items) {
+      const catId = p.categoryId || p.category_id || 'hardware';
+      const listP = p.listPrice !== undefined ? p.listPrice : (p.list_price !== undefined ? p.list_price : 0);
+      const costP = p.costPrice !== undefined ? p.costPrice : (p.cost_price !== undefined ? p.cost_price : 0);
+      const isRec = p.isRecurring !== undefined ? p.isRecurring : (p.is_recurring !== undefined ? p.is_recurring : false);
+      const billPer = p.billingPeriod || p.billing_period || (isRec ? 'monthly' : 'one-time');
+
+      const result = await pool.query(`
+        INSERT INTO products (id, name, category_id, list_price, cost_price, is_recurring, billing_period, sku, description)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          category_id = EXCLUDED.category_id,
+          list_price = EXCLUDED.list_price,
+          cost_price = EXCLUDED.cost_price,
+          is_recurring = EXCLUDED.is_recurring,
+          billing_period = EXCLUDED.billing_period,
+          sku = EXCLUDED.sku,
+          description = EXCLUDED.description
+        RETURNING *
+      `, [
+        p.id || `prod-${Date.now()}`,
+        p.name,
+        catId,
+        listP,
+        costP,
+        isRec,
+        billPer,
+        p.sku || `SKU-${Date.now().toString().slice(-4)}`,
+        p.description || ''
+      ]);
+      saved.push(result.rows[0]);
+    }
+    res.status(201).json({ count: saved.length, products: saved });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // 3. Quotes API
 app.get('/api/quotes', async (req, res) => {

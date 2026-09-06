@@ -33,68 +33,71 @@ interface AffinityRule {
 
 // Intelligent Semantic & Commercial Correlation Rules
 const AFFINITY_RULES: AffinityRule[] = [
-  // 1. Bread -> Milk (The quintessential cross-sell example)
+  // 1. Laptop / Mobile / Workstation -> Docking Station or Thunderbolt Cable (Essential Hardware Companion)
   {
-    triggerMatches: (names) => {
-      const match = names.find((n) => /bread|loaf|bakery|toast|sourdough/i.test(n));
-      return { matched: !!match, triggerName: match || 'Artisan Bread' };
+    triggerMatches: (names, categories, ids) => {
+      const match = names.find((n) => /laptop|notebook|workstation|pc|mobile|phone|macbook|thinkpad/i.test(n))
+        || (ids.includes('prod-laptop') ? 'Laptop Pro 14' : undefined);
+      return { matched: !!match, triggerName: match || 'Enterprise Computer' };
     },
-    targetProductMatcher: (p) => /milk|dairy/i.test(p.name) || p.id === 'prod-milk',
-    type: 'cross-sell',
-    promoDiscount: 5,
-    confidenceScore: 98,
-    badgeTitle: 'High Affinity Basket Pairing',
-    reasonGenerator: (triggerName, target) =>
-      `98% co-purchase correlation with ${triggerName}. Milk & Bread are the quintessential companion pairing with near 100% customer attach willingness.`,
-    tags: ['98% Co-Purchase', 'FMCG Classic', 'Zero Friction'],
-  },
-
-  // 2. Bread -> Butter
-  {
-    triggerMatches: (names) => {
-      const match = names.find((n) => /bread|loaf|bakery|toast|sourdough/i.test(n));
-      return { matched: !!match, triggerName: match || 'Artisan Bread' };
-    },
-    targetProductMatcher: (p) => /butter|spread|jam/i.test(p.name) || p.id === 'prod-butter',
+    targetProductMatcher: (p) => /docking|dock|thunderbolt|hub/i.test(p.name) || p.id === 'prod-dock' || p.id === 'prod-dock-cable',
     type: 'cross-sell',
     promoDiscount: 8,
-    confidenceScore: 92,
-    badgeTitle: 'Essential Companion Item',
-    reasonGenerator: (triggerName) =>
-      `89% attachment with ${triggerName}. Pure salted butter completes breakfast basket orders with instant margin uplift.`,
-    tags: ['89% Attach Rate', 'Instant Margin Uplift'],
-  },
-
-  // 3. Milk -> Bread
-  {
-    triggerMatches: (names) => {
-      const match = names.find((n) => /milk|dairy/i.test(n));
-      return { matched: !!match, triggerName: match || 'Fresh Milk' };
-    },
-    targetProductMatcher: (p) => /bread|sourdough|bakery/i.test(p.name) || p.id === 'prod-bread',
-    type: 'cross-sell',
-    promoDiscount: 5,
     confidenceScore: 96,
-    badgeTitle: 'High Affinity Basket Pairing',
+    badgeTitle: 'Essential Workstation Peripheral',
     reasonGenerator: (triggerName) =>
-      `96% customer co-purchase affinity with ${triggerName}. Adding artisan bread expands order size effortlessly.`,
-    tags: ['96% Co-Purchase', 'Staple Synergy'],
+      `94% of enterprise workstation deployments attach a high-throughput Docking Station or Thunderbolt 4 Cable to ${triggerName} for dual-4K monitor expansion and desk ergonomics.`,
+    tags: ['94% Attach Rate', 'Workstation Essential', 'Zero Friction'],
   },
 
-  // 4. Milk -> Butter
+  // 2. Display / Monitor / TV -> 4K Video Conference Bar
   {
     triggerMatches: (names) => {
-      const match = names.find((n) => /milk|dairy/i.test(n));
-      return { matched: !!match, triggerName: match || 'Fresh Milk' };
+      const match = names.find((n) => /display|monitor|screen|curved|ultrawide|tv|television/i.test(n));
+      return { matched: !!match, triggerName: match || 'Enterprise Display' };
     },
-    targetProductMatcher: (p) => /butter/i.test(p.name) || p.id === 'prod-butter',
+    targetProductMatcher: (p) => /video conference|video bar|webcam|camera/i.test(p.name) || p.id === 'prod-video-bar',
     type: 'cross-sell',
     promoDiscount: 10,
-    confidenceScore: 88,
-    badgeTitle: 'Dairy Category Cross-Sell',
+    confidenceScore: 92,
+    badgeTitle: 'Hybrid Meeting Room Synergy',
     reasonGenerator: (triggerName) =>
-      `Frequently purchased alongside ${triggerName} during commercial grocery replenishment cycles.`,
-    tags: ['Dairy Category Pair', 'Volume Expansion'],
+      `88% of clients purchasing ${triggerName} bundle the 4K Ultra-HD Auto-Framing Video Conference Bar for complete hybrid boardroom audio/visual readiness.`,
+    tags: ['88% Attach Rate', 'Meeting Room Ready', '+₹16,000 Margin'],
+  },
+
+  // 3. Laptop / Workstation / Mobile / TV -> Wireless Ergonomic Keyboard & Mouse Combo
+  {
+    triggerMatches: (names, categories) => {
+      const match = names.find((n) => /laptop|pc|workstation|computer|mobile|desk/i.test(n))
+        || (categories.includes('hardware') ? 'Hardware Deployment' : undefined);
+      return { matched: !!match, triggerName: match || 'Hardware Deployment' };
+    },
+    targetProductMatcher: (p) => /keyboard|mouse|combo|peripherals/i.test(p.name) || p.id === 'prod-keyboard-mouse' || p.id === 'prod-ergonomic-peripherals',
+    type: 'cross-sell',
+    promoDiscount: 5,
+    confidenceScore: 95,
+    badgeTitle: 'Ergonomic Desk Productivity',
+    reasonGenerator: (triggerName) =>
+      `91% co-purchase rate alongside ${triggerName}. Equipping end-users with whisper-quiet ergonomic keyboards and precision mice ensures high workplace productivity.`,
+    tags: ['91% Co-Purchase', 'End-User Productivity'],
+  },
+
+  // 4. Any Hardware (Laptop, Display, TV, Mobile) -> 3-Year Enterprise Care Plan SLA
+  {
+    triggerMatches: (names, categories) => {
+      const match = names.find((n) => /laptop|display|tv|mobile|hardware|device|server|terminal/i.test(n))
+        || (categories.includes('hardware') ? 'Enterprise Hardware Asset' : undefined);
+      return { matched: !!match, triggerName: match || 'Hardware Asset' };
+    },
+    targetProductMatcher: (p) => /care plan|maintenance|warranty|support/i.test(p.name) || p.id === 'prod-care-plan',
+    type: 'upsell',
+    promoDiscount: 10,
+    confidenceScore: 97,
+    badgeTitle: 'Mission-Critical Warranty & SLA',
+    reasonGenerator: (triggerName) =>
+      `Critical asset protection for ${triggerName}. 95% of enterprise buyers attach the 3-Year 24/7 Care Plan SLA for guaranteed replacement coverage and continuous uptime (+₹30,000 margin lift).`,
+    tags: ['95% Attach Willingness', 'Recurring SLA', '+₹30,000 Margin'],
   },
 
   // 5. Onsite Setup Service -> Care Plan 3 years (The exact setup service in user's quote!)
@@ -395,7 +398,7 @@ export function getUpsellRecommendations(
     );
 
     // Prioritize flagship products for starter recommendations
-    const starterOrder = ['prod-laptop', 'prod-service', 'prod-bread', 'prod-care-plan'];
+    const starterOrder = ['prod-laptop', 'prod-service', 'prod-display', 'prod-care-plan'];
     const sorted = [...unpicked].sort((a, b) => {
       const idxA = starterOrder.indexOf(a.id);
       const idxB = starterOrder.indexOf(b.id);
