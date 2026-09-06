@@ -18,6 +18,7 @@ export type Permission =
   | 'deal_health.view'
   | 'reports.view'
   | 'admin.configure'
+  | 'products.view'
   | 'products.manage'
   | 'users.manage';
 
@@ -30,6 +31,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quotation.create',
     'quotation.edit',
     'quotation.submit',
+    'products.view',
     'deal_health.view',
     'reports.view',
   ],
@@ -47,10 +49,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quotations.view',
     'approvals.view',
     'approvals.finance',
-    'fulfillment.view',
-    'fulfillment.manage',
     'billing.view',
     'billing.manage',
+    'reports.view',
   ],
   customer: [
     'customer_portal.access',
@@ -73,6 +74,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'deal_health.view',
     'reports.view',
     'admin.configure',
+    'products.view',
     'products.manage',
     'users.manage',
   ],

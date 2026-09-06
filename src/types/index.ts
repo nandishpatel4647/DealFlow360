@@ -239,6 +239,9 @@ export interface Quote {
   fulfillmentStage?: FulfillmentStage;
   fulfillmentBlockReason?: string;
   shipments?: Shipment[];
+  fulfillmentLocked?: boolean;
+  allocationConfirmedAt?: string;
+  allocationConfirmedBy?: string;
 }
 
 export interface ApprovalRecord {
@@ -351,4 +354,15 @@ export interface ChatMessage {
   senderName: string;
   text: string;
   timestamp: string;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  type: 'quote' | 'approval' | 'fulfillment' | 'billing' | 'anomaly' | 'negotiation';
+  relatedId?: string;
+  targetRole?: UserRole | 'all';
 }

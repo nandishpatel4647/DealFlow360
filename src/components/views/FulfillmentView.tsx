@@ -164,7 +164,7 @@ export const FulfillmentView: React.FC = () => {
 
   const existingInvoice = invoices.find((inv) => inv.quoteId === activeQuote?.id);
   const isAlreadyInvoiced =
-    Boolean(existingInvoice) || activeQuote?.status === 'Invoiced' || activeQuote?.status === 'Paid';
+    Boolean(existingInvoice) || activeQuote?.status === 'Invoiced' || activeQuote?.status === 'Paid' || Boolean(activeQuote?.fulfillmentLocked);
 
   const fulfillmentPlan = activeQuote
     ? generateOptimalFulfillment(activeQuote.id, activeQuote.lines, warehouses, inventory)
@@ -341,12 +341,15 @@ export const FulfillmentView: React.FC = () => {
                                   >
                                     [🚫 Stock Insufficient]
                                   </button>
+                                ) : q.fulfillmentLocked || invoices.some((i) => i.quoteId === q.id) || q.status === 'Invoiced' || q.status === 'Paid' ? (
+                                  <span className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold font-sans">
+                                    ✓ Allocated & Invoiced
+                                  </span>
                                 ) : (
                                   <button
                                     onClick={() => {
                                       advanceFulfillmentStage(q.id, 'Warehouse Allocated');
                                       acceptFulfillment(q.id);
-                                      alert(`Assigned warehouse (${allocatedWh}) and generated invoice for ${q.id}.`);
                                     }}
                                     className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-2xs font-sans"
                                   >

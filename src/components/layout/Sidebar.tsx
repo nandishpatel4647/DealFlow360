@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
     { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban, permission: 'pipeline.view' },
     { id: 'builder', label: 'Quotations', icon: FilePlus2, permission: 'quotations.view' },
-    { id: 'products', label: 'Products', icon: Package, permission: 'quotations.view' },
+    { id: 'products', label: 'Products', icon: Package, permission: 'products.view' },
   ];
 
   const opsNav: NavItem[] = [

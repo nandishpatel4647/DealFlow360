@@ -16,6 +16,7 @@ import {
   Check,
   ShieldCheck,
   CreditCard,
+  UserCheck,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { CustomerTierType, ProductCategoryType, UserRole, Company, Product, Warehouse } from '../../types';
@@ -38,9 +39,13 @@ export const AdminConfigView: React.FC = () => {
     updateInventoryStock,
     loginAsCustomer,
     setActiveView,
+    customerAssignments,
+    repManagerAssignments,
+    assignCustomerToRep,
+    assignRepToManager,
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'customers' | 'products' | 'warehouses' | 'governance'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'customers' | 'products' | 'warehouses' | 'governance' | 'assignments'>('users');
 
   // Governance Matrix State
   const [tierCeilings, setTierCeilings] = useState(configPolicy.tierCeilings);
@@ -301,6 +306,17 @@ export const AdminConfigView: React.FC = () => {
           }`}
         >
           <ShieldAlert className="w-4 h-4" /> CPQ Governance Engine
+        </button>
+
+        <button
+          onClick={() => setActiveTab('assignments')}
+          className={`pb-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
+            activeTab === 'assignments'
+              ? 'border-[#0176D3] text-[#0176D3]'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" /> Team & Account Assignments
         </button>
       </div>
 
@@ -865,6 +881,158 @@ export const AdminConfigView: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: TEAM & ACCOUNT ASSIGNMENTS */}
+      {activeTab === 'assignments' && (
+        <div className="bg-white rounded-b-xl border border-t-0 border-slate-200 p-6 space-y-8 shadow-2xs">
+          {/* Section 1: Customer -> Sales Rep Assignment */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Building className="w-4 h-4 text-[#0176D3]" />
+                  Customer Account → Sales Representative Matrix
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Assign enterprise accounts to sales reps. New quotations, commercial negotiations, and portal revisions will route to the assigned representative.
+                </p>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                {companies.length} Customer Accounts
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <th className="p-3">Customer Account</th>
+                    <th className="p-3">Tier & Industry</th>
+                    <th className="p-3">Credit Limit</th>
+                    <th className="p-3">Assigned Sales Rep</th>
+                    <th className="p-3 text-right">Routing Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {companies.map((comp) => {
+                    const currentRepEmail = customerAssignments[comp.id] || 'rep@dealflow360.com';
+                    const repUser = users.find((u) => u.email === currentRepEmail);
+                    const salesReps = users.filter((u) => u.role === 'sales_rep' || u.role === 'admin');
+
+                    return (
+                      <tr key={comp.id} className="hover:bg-slate-50/70 transition">
+                        <td className="p-3">
+                          <div className="font-bold text-slate-900">{comp.name}</div>
+                          <div className="text-[11px] text-slate-500 font-mono">{comp.contactEmail}</div>
+                        </td>
+                        <td className="p-3">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                            comp.tierId === 'Gold' ? 'bg-amber-100 text-amber-800' : comp.tierId === 'Silver' ? 'bg-slate-200 text-slate-800' : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            {comp.tierId}
+                          </span>
+                          <span className="text-slate-500 ml-1.5 text-[11px]">{comp.industry}</span>
+                        </td>
+                        <td className="p-3 font-mono font-semibold text-slate-700">
+                          ₹{comp.creditLimit.toLocaleString('en-IN')}
+                        </td>
+                        <td className="p-3">
+                          <select
+                            value={currentRepEmail}
+                            onChange={(e) => assignCustomerToRep(comp.id, e.target.value)}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-900 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none cursor-pointer"
+                          >
+                            {salesReps.map((rep) => (
+                              <option key={rep.email} value={rep.email}>
+                                {rep.name} ({rep.email})
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-3 text-right">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <Check className="w-3 h-3" /> Assigned to {repUser?.name?.split(' ')[0] || 'Rep'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Section 2: Sales Rep -> Manager Hierarchy */}
+          <div className="space-y-4 pt-4 border-t border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-[#0176D3]" />
+                  Sales Team Reporting Hierarchy Matrix
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Configure reporting managers for each sales representative. Deal margin approvals and discount exception escalations route directly to the designated manager.
+                </p>
+              </div>
+              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                Hierarchy Mapping
+              </span>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <th className="p-3">Sales Representative</th>
+                    <th className="p-3">Title / Designation</th>
+                    <th className="p-3">Reporting Sales Manager</th>
+                    <th className="p-3 text-right">Escalation Path</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {users
+                    .filter((u) => u.role === 'sales_rep')
+                    .map((rep) => {
+                      const currentManagerEmail = repManagerAssignments[rep.email] || 'manager@dealflow360.com';
+                      const mgrUser = users.find((u) => u.email === currentManagerEmail);
+                      const managers = users.filter((u) => u.role === 'sales_manager' || u.role === 'admin');
+
+                      return (
+                        <tr key={rep.email} className="hover:bg-slate-50/70 transition">
+                          <td className="p-3">
+                            <div className="font-bold text-slate-900">{rep.name}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">{rep.email}</div>
+                          </td>
+                          <td className="p-3 text-slate-600 font-medium">
+                            {rep.title || 'Sales Specialist'}
+                          </td>
+                          <td className="p-3">
+                            <select
+                              value={currentManagerEmail}
+                              onChange={(e) => assignRepToManager(rep.email, e.target.value)}
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white text-slate-900 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] outline-none cursor-pointer"
+                            >
+                              {managers.map((mgr) => (
+                                <option key={mgr.email} value={mgr.email}>
+                                  {mgr.name} ({mgr.title || 'Sales Manager'})
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
+                              Direct Report → {mgrUser?.name || 'M. Shah'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

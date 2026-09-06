@@ -19,6 +19,7 @@ import {
   CustomerRevisionRequest,
   CustomerRevisionRequestLine,
   QuoteStatus,
+  AppNotification,
 } from '../types';
 import {
   SEED_COMPANIES,
@@ -165,12 +166,73 @@ interface AppContextType {
   updatePolicy: (updates: Partial<ConfigPolicy>) => void;
   addCustomAuditLog: (quoteId: string, actor: string, action: string, details?: any) => void;
   resetToSeedData: () => void;
+
+  // Assignments & Governance
+  customerAssignments: Record<string, string>;
+  repManagerAssignments: Record<string, string>;
+  assignCustomerToRep: (companyId: string, repEmail: string) => void;
+  assignRepToManager: (repEmail: string, managerEmail: string) => void;
+
+  // Admin Operations
+  deleteQuote: (quoteId: string) => boolean;
+
+  // Real-time Event Notifications
+  notifications: AppNotification[];
+  addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearNotifications: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY = 'dealflow360_app_state_v2';
 const AUTH_STORAGE_KEY = 'dealflow360_auth_v2';
+
+export const DEFAULT_CUSTOMER_ASSIGNMENTS: Record<string, string> = {
+  'comp-acme': 'rep@dealflow360.com',
+  'comp-novatech': 'asharma@dealflow360.com',
+  'comp-orbit': 'rep@dealflow360.com',
+  'comp-zenith': 'asharma@dealflow360.com',
+};
+
+export const DEFAULT_REP_MANAGER_ASSIGNMENTS: Record<string, string> = {
+  'rep@dealflow360.com': 'manager@dealflow360.com',
+  'asharma@dealflow360.com': 'manager@dealflow360.com',
+};
+
+export const INITIAL_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: 'notif-1',
+    title: 'Commercial Approval Required',
+    message: 'Quotation Q-1039 (NovaTech Systems) requires Sales Manager approval.',
+    timestamp: new Date(Date.now() - 3600000 * 24).toISOString(),
+    read: false,
+    type: 'approval',
+    relatedId: 'Q-1039',
+    targetRole: 'sales_manager',
+  },
+  {
+    id: 'notif-2',
+    title: 'Customer Revision Requested',
+    message: 'Acme Industries submitted a counter-offer for quotation Q-1048.',
+    timestamp: new Date(Date.now() - 3600000 * 6).toISOString(),
+    read: false,
+    type: 'negotiation',
+    relatedId: 'Q-1048',
+    targetRole: 'sales_rep',
+  },
+  {
+    id: 'notif-3',
+    title: 'Order Ready for Fulfillment',
+    message: 'Quotation Q-1042 fully approved by Finance. Ready for warehouse allocation.',
+    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
+    read: false,
+    type: 'fulfillment',
+    relatedId: 'Q-1042',
+    targetRole: 'all',
+  },
+];
 
 const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
@@ -863,16 +925,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     initialSaved?.configPolicy || DEFAULT_CONFIG_POLICY
   );
   const [anomalies, setAnomalies] = useState<DealAnomaly[]>(() => {
-    if (!initialSaved?.anomalies) return scanDealAnomalies(SEED_QUOTES, SEED_COMPANIES);
-    const ids = initialSaved.anomalies.map((a: DealAnomaly) => a.id);
+    const rawAnomalies = initialSaved?.anomalies;
+    if (!rawAnomalies || rawAnomalies.length === 0) {
+      return scanDealAnomalies(initialSaved?.quotes || SEED_QUOTES, initialSaved?.companies || SEED_COMPANIES);
+    }
+    const ids = rawAnomalies.map((a: DealAnomaly) => a.id);
     const hasDuplicateIds = new Set(ids).size !== ids.length;
     if (hasDuplicateIds) {
-      return scanDealAnomalies(SEED_QUOTES, SEED_COMPANIES);
+      return scanDealAnomalies(initialSaved?.quotes || SEED_QUOTES, initialSaved?.companies || SEED_COMPANIES);
     }
-    return initialSaved.anomalies;
+    return rawAnomalies;
   });
   const [messages, setMessages] = useState<ChatMessage[]>(
     initialSaved?.messages || INITIAL_SEED_MESSAGES
+  );
+  const [customerAssignments, setCustomerAssignments] = useState<Record<string, string>>(
+    initialSaved?.customerAssignments || DEFAULT_CUSTOMER_ASSIGNMENTS
+  );
+  const [repManagerAssignments, setRepManagerAssignments] = useState<Record<string, string>>(
+    initialSaved?.repManagerAssignments || DEFAULT_REP_MANAGER_ASSIGNMENTS
+  );
+  const [notifications, setNotifications] = useState<AppNotification[]>(
+    initialSaved?.notifications || INITIAL_NOTIFICATIONS
   );
 
   const activeQuote = quotes.find((q) => q.id === selectedQuoteId) || quotes[0] || null;
@@ -896,6 +970,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         configPolicy,
         anomalies,
         messages,
+        customerAssignments,
+        repManagerAssignments,
+        notifications,
       })
     );
   }, [
@@ -913,16 +990,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     configPolicy,
     anomalies,
     messages,
+    customerAssignments,
+    repManagerAssignments,
+    notifications,
   ]);
 
   // Re-scan deal anomalies whenever quotes or companies change (data-driven)
   useEffect(() => {
     const freshAnomalies = scanDealAnomalies(quotes, companies);
     // Preserve resolved status from existing anomalies
-    const resolvedIds = new Set(anomalies.filter((a) => a.isResolved).map((a) => `${a.quoteId}-${a.anomalyType}`));
+    const resolvedMap = new Map(anomalies.filter((a) => a.isResolved).map((a) => [a.id, a.actionTaken]));
     const merged = freshAnomalies.map((a) => ({
       ...a,
-      isResolved: resolvedIds.has(`${a.quoteId}-${a.anomalyType}`),
+      isResolved: resolvedMap.has(a.id),
+      actionTaken: resolvedMap.get(a.id) || a.actionTaken,
+      recommendedAction: resolvedMap.has(a.id) ? `Resolved (${resolvedMap.get(a.id)})` : a.recommendedAction,
     }));
     setAnomalies(merged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1502,6 +1584,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           riskBreakdown: evalResult.riskBreakdown,
         };
         broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
+        addNotification({
+          title: 'Quotation Submitted for Approval',
+          message: `Quotation ${quoteId} (${q.companyName}) submitted for ${stage === 'Fully Approved' ? 'Customer Delivery' : stage} (${evalResult.riskLevel} Risk).`,
+          type: 'approval',
+          relatedId: quoteId,
+          targetRole: nextStatus === 'Pending Manager' ? 'sales_manager' : 'all',
+        });
         return updatedQuote;
       })
     );
@@ -1519,6 +1608,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           approvalAssignedTo: 'Customer Portal',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
+        addNotification({
+          title: 'Quotation Sent to Customer',
+          message: `Quotation ${quoteId} sent to Customer Portal (${q.companyName}).`,
+          type: 'quote',
+          relatedId: quoteId,
+          targetRole: 'customer',
+        });
         return updated;
       })
     );
@@ -1536,6 +1632,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           approvalAssignedTo: 'Customer Portal',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
+        addNotification({
+          title: 'Revised Quotation Sent',
+          message: `Revised Quotation ${quoteId} sent to ${q.companyName}.`,
+          type: 'quote',
+          relatedId: quoteId,
+          targetRole: 'customer',
+        });
         return updated;
       })
     );
@@ -1554,6 +1657,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           approvalAssignedTo: 'Customer',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
+        addNotification({
+          title: 'Approved by Sales Manager',
+          message: `Quotation ${quoteId} (${q.companyName}) approved by Sales Manager.`,
+          type: 'approval',
+          relatedId: quoteId,
+          targetRole: 'sales_rep',
+        });
         return updated;
       })
     );
@@ -1574,6 +1684,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           approvalAssignedTo: 'Completed',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
+        addNotification({
+          title: 'Approved by Finance',
+          message: `Quotation ${quoteId} (${q.companyName}) granted final Finance approval.`,
+          type: 'approval',
+          relatedId: quoteId,
+          targetRole: 'all',
+        });
         return updated;
       })
     );
@@ -1595,6 +1712,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           approvalAssignedTo: 'P. Mehta (Sales Rep)',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
+        addNotification({
+          title: 'Quotation Returned for Revision',
+          message: `Quotation ${quoteId} (${q.companyName}) returned for revision: ${comments}`,
+          type: 'approval',
+          relatedId: quoteId,
+          targetRole: 'sales_rep',
+        });
         return updated;
       })
     );
@@ -1617,6 +1741,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           approvalAssignedTo: 'Closed',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
+        addNotification({
+          title: 'Quotation Rejected',
+          message: `Quotation ${quoteId} (${q.companyName}) was rejected: ${comments}`,
+          type: 'approval',
+          relatedId: quoteId,
+          targetRole: 'sales_rep',
+        });
         return updated;
       })
     );
@@ -1687,6 +1818,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
 
         broadcastSync('QUOTE_UPDATED', { quote: updatedQuote });
+        addNotification({
+          title: 'Customer Revision Requested',
+          message: `${q.companyName} submitted a commercial counter-offer on quote ${quoteId}.`,
+          type: 'negotiation',
+          relatedId: quoteId,
+          targetRole: 'sales_rep',
+        });
         return updatedQuote;
       })
     );
@@ -1901,6 +2039,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // This enforces: Fulfillment → Invoiced → Paid lifecycle.
 
         broadcastSync('QUOTE_UPDATED', { quote: updated });
+        addNotification({
+          title: 'Quotation Accepted by Customer',
+          message: `${q.companyName} accepted quotation ${quoteId}. Order released for ${isCompliant ? 'fulfillment allocation' : 'Finance Manager review'}.`,
+          type: 'quote',
+          relatedId: quoteId,
+          targetRole: isCompliant ? 'all' : 'finance',
+        });
         return updated;
       })
     );
@@ -1943,11 +2088,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const updated: Quote = {
           ...q,
           status: 'Invoiced',
+          fulfillmentStage: 'Warehouse Allocated',
+          fulfillmentLocked: true,
+          allocationConfirmedAt: new Date().toISOString(),
+          allocationConfirmedBy: currentUser?.name || 'Operations Lead',
         };
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
       })
     );
+
+    addNotification({
+      title: 'Fulfillment & Invoicing Triggered',
+      message: `Quotation ${quoteId} (${targetQuote.companyName}) warehouse allocation confirmed. Invoice ${invoice.id} generated.`,
+      type: 'fulfillment',
+      relatedId: quoteId,
+      targetRole: 'all',
+    });
 
     setActiveView('invoices');
     return { invoiceId: invoice.id, isNew: true };
@@ -1974,6 +2131,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         );
 
         addCustomAuditLog(inv.quoteId, `${currentUser?.name || 'Finance (R. Iyer)'}`, `Payment Verified & Settled (₹${inv.totalAmount.toLocaleString('en-IN')})`);
+        
+        addNotification({
+          title: 'Payment Received',
+          message: `Payment of ₹${inv.totalAmount.toLocaleString('en-IN')} received for Invoice ${inv.id} (${inv.companyName}).`,
+          type: 'billing',
+          relatedId: inv.id,
+          targetRole: 'all',
+        });
+
         return updatedInv;
       })
     );
@@ -1986,11 +2152,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (anom.id !== anomalyId) return anom;
         addCustomAuditLog(
           anom.quoteId,
-          'Sales Operations Manager',
+          currentUser?.name || 'Sales Operations Manager',
           `Anomaly Action: ${actionTaken}`,
           { anomaly: anom.anomalyType }
         );
-        return { ...anom, isResolved: true, actionTaken };
+        return { ...anom, isResolved: true, actionTaken, recommendedAction: `Resolved (${actionTaken})` };
       })
     );
   };
@@ -2001,6 +2167,93 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setQuotes((qList) => qList.map((q) => recomputeQuote(q, nextPolicy)));
       return nextPolicy;
     });
+  };
+
+  // Admin Draft Quote Deletion (ADMIN ONLY & DRAFT ONLY)
+  const deleteQuote = (quoteId: string): boolean => {
+    if (userRole !== 'admin') {
+      alert('Action Unauthorized: Only Administrators have permission to delete quotations.');
+      return false;
+    }
+    const target = quotes.find((q) => q.id === quoteId);
+    if (!target) return false;
+    if (target.status !== 'Draft') {
+      alert(`Cannot delete quotation ${quoteId} in "${target.status}" status. Only Draft quotations may be deleted.`);
+      return false;
+    }
+    setQuotes((prev) => prev.filter((q) => q.id !== quoteId));
+    addCustomAuditLog(quoteId, currentUser?.name || 'Administrator', `Permanently Deleted Draft Quotation ${quoteId} (${target.companyName})`);
+    addNotification({
+      title: 'Draft Quotation Deleted',
+      message: `Draft quotation ${quoteId} (${target.companyName}) was removed by Administrator.`,
+      type: 'quote',
+      relatedId: quoteId,
+      targetRole: 'admin',
+    });
+    if (selectedQuoteId === quoteId) {
+      const remaining = quotes.filter((q) => q.id !== quoteId);
+      setSelectedQuoteId(remaining[0]?.id || '');
+    }
+    return true;
+  };
+
+  // Customer & Sales Rep Assignments
+  const assignCustomerToRep = (companyId: string, repEmail: string) => {
+    setCustomerAssignments((prev) => ({ ...prev, [companyId]: repEmail }));
+    const company = companies.find((c) => c.id === companyId);
+    const rep = users.find((u) => u.email === repEmail);
+    addCustomAuditLog(
+      companyId,
+      currentUser?.name || 'Admin',
+      `Assigned Customer ${company?.name || companyId} to Sales Rep ${rep?.name || repEmail}`
+    );
+    addNotification({
+      title: 'Customer Assignment Updated',
+      message: `${company?.name || companyId} assigned to ${rep?.name || repEmail}`,
+      type: 'quote',
+      relatedId: companyId,
+      targetRole: 'sales_rep',
+    });
+  };
+
+  const assignRepToManager = (repEmail: string, managerEmail: string) => {
+    setRepManagerAssignments((prev) => ({ ...prev, [repEmail]: managerEmail }));
+    const rep = users.find((u) => u.email === repEmail);
+    const mgr = users.find((u) => u.email === managerEmail);
+    addCustomAuditLog(
+      'SYSTEM',
+      currentUser?.name || 'Admin',
+      `Assigned Sales Rep ${rep?.name || repEmail} to Manager ${mgr?.name || managerEmail}`
+    );
+    addNotification({
+      title: 'Rep-Manager Hierarchy Updated',
+      message: `${rep?.name || repEmail} is now reporting to ${mgr?.name || managerEmail}`,
+      type: 'approval',
+      targetRole: 'sales_manager',
+    });
+  };
+
+  // Real-time Event Notification System
+  const addNotification = (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+    const newNotif: AppNotification = {
+      ...notif,
+      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    setNotifications((prev) => [newNotif, ...prev]);
+  };
+
+  const markNotificationRead = (id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
   };
 
   const resetToSeedData = () => {
@@ -2015,6 +2268,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setAuditLogs(SEED_AUDIT_LOGS);
     setAnomalies(scanDealAnomalies(SEED_QUOTES, SEED_COMPANIES));
     setConfigPolicy(DEFAULT_CONFIG_POLICY);
+    setCustomerAssignments(DEFAULT_CUSTOMER_ASSIGNMENTS);
+    setRepManagerAssignments(DEFAULT_REP_MANAGER_ASSIGNMENTS);
+    setNotifications(INITIAL_NOTIFICATIONS);
     setSelectedQuoteId('Q-1042');
     localStorage.removeItem(LOCAL_STORAGE_KEY);
   };
@@ -2090,6 +2346,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updatePolicy,
         addCustomAuditLog,
         resetToSeedData,
+        customerAssignments,
+        repManagerAssignments,
+        assignCustomerToRep,
+        assignRepToManager,
+        deleteQuote,
+        notifications,
+        addNotification,
+        markNotificationRead,
+        markAllNotificationsRead,
+        clearNotifications,
       }}
     >
       {children}
