@@ -350,6 +350,7 @@ export interface ConfigPolicy {
 export interface ChatMessage {
   id: string;
   quoteId: string;
+  companyId?: string;
   sender: 'customer' | 'rep' | 'manager' | 'system';
   senderName: string;
   text: string;

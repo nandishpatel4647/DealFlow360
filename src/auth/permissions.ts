@@ -7,6 +7,7 @@ export type Permission =
   | 'quotation.create'
   | 'quotation.edit'
   | 'quotation.submit'
+  | 'messages.view'
   | 'approvals.view'
   | 'approvals.manager'
   | 'approvals.finance'
@@ -31,6 +32,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quotation.create',
     'quotation.edit',
     'quotation.submit',
+    'messages.view',
     'products.view',
     'deal_health.view',
     'reports.view',
@@ -39,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'dashboard.view',
     'pipeline.view',
     'quotations.view',
+    'messages.view',
     'approvals.view',
     'approvals.manager',
     'deal_health.view',
@@ -63,6 +66,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quotation.create',
     'quotation.edit',
     'quotation.submit',
+    'messages.view',
     'approvals.view',
     'approvals.manager',
     'approvals.finance',

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Clock, User, ShieldCheck, Cpu } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, User, ShieldCheck, Cpu, ChevronDown, ChevronUp } from 'lucide-react';
 import { AuditLog } from '../../types';
 
 interface ActivityTimelineProps {
@@ -8,6 +8,7 @@ interface ActivityTimelineProps {
 }
 
 export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ logs, quoteId }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const filteredLogs = quoteId ? logs.filter((l) => l.quoteId === quoteId) : logs;
 
   if (filteredLogs.length === 0) {
@@ -28,8 +29,10 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ logs, quoteI
     return <User className="w-3.5 h-3.5 text-slate-500" />;
   };
 
+  const displayedLogs = isExpanded ? filteredLogs : filteredLogs.slice(0, 4);
+
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs">
+    <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs transition-all">
       <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
           Governance & Audit Trail
@@ -39,8 +42,12 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ logs, quoteI
         </span>
       </div>
 
-      <div className="mt-4 relative pl-4 border-l border-slate-200 space-y-4">
-        {filteredLogs.map((log) => {
+      <div
+        className={`mt-4 relative pl-4 border-l border-slate-200 space-y-4 ${
+          isExpanded ? 'max-h-[460px] overflow-y-auto pr-2' : ''
+        }`}
+      >
+        {displayedLogs.map((log) => {
           const time = new Date(log.createdAt).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
@@ -79,7 +86,26 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ logs, quoteI
           );
         })}
       </div>
+
+      {filteredLogs.length > 4 && (
+        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs font-bold text-[#0176D3] hover:text-blue-700 flex items-center gap-1 px-3 py-1.5 rounded-md hover:bg-blue-50/60 transition cursor-pointer"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="w-3.5 h-3.5" /> Show Less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-3.5 h-3.5" /> View More ({filteredLogs.length - 4} older events)
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
-

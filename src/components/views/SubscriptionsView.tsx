@@ -205,7 +205,7 @@ export const SubscriptionsView: React.FC = () => {
             onClick={() => setIsAddPlanModalOpen(true)}
             className="px-4 py-2.5 rounded-lg text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs transition flex items-center gap-2 cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-slate-600" /> + New Plan (Admin)
+            <Plus className="w-4 h-4 text-slate-600" /> New Plan (Admin)
           </button>
         ) : (
           <span className="text-xs text-slate-500 font-medium italic">

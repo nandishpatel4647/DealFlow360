@@ -135,7 +135,7 @@ interface AppContextType {
   addWarehouse: (warehouse: Warehouse) => void;
   updateWarehouse: (warehouse: Warehouse) => void;
   updateInventoryStock: (warehouseId: string, productId: string, quantityOnHand: number) => void;
-  sendMessage: (quoteId: string, text: string, sender: 'customer' | 'rep' | 'manager' | 'system', senderName: string) => void;
+  sendMessage: (quoteId: string, text: string, sender: 'customer' | 'rep' | 'manager' | 'system', senderName: string, companyId?: string) => void;
   createNewQuote: (companyId: string) => string;
   updateQuoteLine: (quoteId: string, lineId: string, quantity: number, discountPercent: number) => void;
   addLineToQuote: (quoteId: string, productId: string, quantity?: number, discountPercent?: number) => void;
@@ -238,6 +238,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-1',
     quoteId: 'Q-1042',
+    companyId: 'comp-1',
     sender: 'rep',
     senderName: 'P. Mehta (Sales Rep)',
     text: 'Hello Acme Procurement! We have generated quotation Q-1042 with standard commercial terms. Please review the deliverables.',
@@ -246,6 +247,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-2',
     quoteId: 'Q-1042',
+    companyId: 'comp-1',
     sender: 'customer',
     senderName: 'Rajesh Verma (Acme)',
     text: 'Thanks P. Mehta. We are reviewing the Installation & Setup line item discounts and requested delivery date.',
@@ -254,6 +256,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-3',
     quoteId: 'Q-1039',
+    companyId: 'comp-2',
     sender: 'rep',
     senderName: 'A. Sharma (Sales Rep)',
     text: 'Hello Priya, proposal Q-1039 for NovaTech Systems is ready. We have configured the high-availability server cluster.',
@@ -262,6 +265,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-4',
     quoteId: 'Q-1039',
+    companyId: 'comp-2',
     sender: 'customer',
     senderName: 'Priya Sharma (NovaTech)',
     text: 'Could you review the software subscription line? We are requesting 30-day net payment terms.',
@@ -270,6 +274,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-5',
     quoteId: 'Q-1035',
+    companyId: 'comp-3',
     sender: 'rep',
     senderName: 'P. Mehta (Sales Rep)',
     text: 'Quotation Q-1035 for Zenith Retail has entered fulfillment dispatch from Mumbai Logistics Center.',
@@ -278,6 +283,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-6',
     quoteId: 'Q-1035',
+    companyId: 'comp-3',
     sender: 'customer',
     senderName: 'Anand Kulkarni (Zenith)',
     text: 'Noted! Please confirm dispatch tracking number once shipment departs.',
@@ -286,6 +292,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-7',
     quoteId: 'Q-1040',
+    companyId: 'comp-4',
     sender: 'customer',
     senderName: 'Dr. Anita Desai (Vertex)',
     text: 'Can we reduce the biotech consulting fee by 15% for annual engagement?',
@@ -294,6 +301,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-8',
     quoteId: 'Q-1040',
+    companyId: 'comp-4',
     sender: 'rep',
     senderName: 'V. Patel (Sales Rep)',
     text: 'Hello Dr. Desai, submitting revision request to sales management for commercial approval.',
@@ -302,6 +310,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-9',
     quoteId: 'Q-1031',
+    companyId: 'comp-5',
     sender: 'rep',
     senderName: 'P. Mehta (Sales Rep)',
     text: 'Tax invoice INV-5016 generated for Orbit Manufacturing. Ready for settlement.',
@@ -310,6 +319,7 @@ const INITIAL_SEED_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-10',
     quoteId: 'Q-1031',
+    companyId: 'comp-5',
     sender: 'customer',
     senderName: 'Vikramaditya Patel (Orbit)',
     text: 'Finance desk has approved the invoice. Payment is scheduled.',
@@ -1202,11 +1212,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     quoteId: string,
     text: string,
     sender: 'customer' | 'rep' | 'manager' | 'system',
-    senderName: string
+    senderName: string,
+    companyId?: string
   ) => {
+    // Resolve target companyId
+    let resolvedCompanyId = companyId;
+    if (!resolvedCompanyId) {
+      const q = quotes.find((q) => q.id === quoteId);
+      if (q) {
+        resolvedCompanyId = q.companyId;
+      } else {
+        const c = companies.find((c) => c.id === quoteId || c.name.toLowerCase() === quoteId.toLowerCase());
+        if (c) resolvedCompanyId = c.id;
+      }
+    }
+    if (!resolvedCompanyId) {
+      resolvedCompanyId = companies[0]?.id || 'comp-1';
+    }
+
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       quoteId,
+      companyId: resolvedCompanyId,
       sender,
       senderName,
       text,
@@ -1216,6 +1243,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setMessages((prev) => [...prev, newMsg]);
     broadcastSync('NEW_MESSAGE', { message: newMsg });
     addCustomAuditLog(quoteId, senderName, `Sent Chat Message: "${text.slice(0, 40)}..."`);
+    addNotification({
+      title: `Message from ${senderName}`,
+      message: text.slice(0, 60),
+      type: 'negotiation',
+      relatedId: quoteId,
+      targetRole: sender === 'customer' ? 'sales_rep' : 'customer',
+    });
   };
 
   const addCustomAuditLog = (quoteId: string, actor: string, action: string, details?: any) => {
@@ -2169,7 +2203,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  // Admin Draft Quote Deletion (ADMIN ONLY & DRAFT ONLY)
+  // Admin Quote Deletion (ADMIN ONLY)
   const deleteQuote = (quoteId: string): boolean => {
     if (userRole !== 'admin') {
       alert('Action Unauthorized: Only Administrators have permission to delete quotations.');
@@ -2177,22 +2211,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const target = quotes.find((q) => q.id === quoteId);
     if (!target) return false;
-    if (target.status !== 'Draft') {
-      alert(`Cannot delete quotation ${quoteId} in "${target.status}" status. Only Draft quotations may be deleted.`);
-      return false;
-    }
     setQuotes((prev) => prev.filter((q) => q.id !== quoteId));
-    addCustomAuditLog(quoteId, currentUser?.name || 'Administrator', `Permanently Deleted Draft Quotation ${quoteId} (${target.companyName})`);
+    addCustomAuditLog(
+      quoteId,
+      currentUser?.name || 'Administrator',
+      `Permanently Deleted Quotation ${quoteId} (${target.companyName})`
+    );
     addNotification({
-      title: 'Draft Quotation Deleted',
-      message: `Draft quotation ${quoteId} (${target.companyName}) was removed by Administrator.`,
+      title: 'Quotation Deleted',
+      message: `Quotation ${quoteId} (${target.companyName}) was permanently removed by Administrator.`,
       type: 'quote',
       relatedId: quoteId,
       targetRole: 'admin',
     });
     if (selectedQuoteId === quoteId) {
-      const remaining = quotes.filter((q) => q.id !== quoteId);
-      setSelectedQuoteId(remaining[0]?.id || '');
+      setSelectedQuoteId(null);
     }
     return true;
   };

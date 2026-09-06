@@ -261,15 +261,30 @@ export const CustomerPortalView: React.FC = () => {
     setTimeout(() => setSubmittedBanner(null), 8000);
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessageText.trim() || !activeQuote) return;
+  const companyQuotes = quotes.filter(
+    (q) => q.companyId === matchedCompany.id || q.companyName.toLowerCase().includes(matchedCompany.name.toLowerCase())
+  );
+  const companyQuoteIds = new Set(companyQuotes.map((q) => q.id));
 
-    sendMessage(activeQuote.id, newMessageText, 'customer', `${currentUser?.name || matchedCompany.name} (${matchedCompany.name})`);
+  // STRICT UNIFIED COMPANY MESSAGES: all messages for this customer account
+  const quoteMessages = messages.filter(
+    (m) => (m.companyId && m.companyId === matchedCompany.id) || companyQuoteIds.has(m.quoteId)
+  );
+
+  const handleSendMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newMessageText.trim()) return;
+
+    const targetQuoteId = activeQuote ? activeQuote.id : (companyQuotes[0]?.id || `COMP-${matchedCompany.id}`);
+    sendMessage(
+      targetQuoteId,
+      newMessageText.trim(),
+      'customer',
+      `${currentUser?.name || matchedCompany.contactPerson || matchedCompany.name} (${matchedCompany.name})`,
+      matchedCompany.id
+    );
     setNewMessageText('');
   };
-
-  const quoteMessages = messages.filter((m) => activeQuote && m.quoteId === activeQuote.id);
 
   if (!activeQuote) {
     return (
@@ -927,9 +942,9 @@ export const CustomerPortalView: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: MESSAGES */}
+        {/* TAB 2: MESSAGES (UNIFIED CUSTOMER COMPANY THREAD) */}
         {activeTab === 'messages' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col h-[600px]">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col h-[650px]">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0176D3] flex items-center justify-center font-bold">
@@ -937,23 +952,23 @@ export const CustomerPortalView: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
-                    Direct Operations Thread: {activeQuote.salesRep}
+                    Direct Operations Thread: {activeQuote ? activeQuote.salesRep : 'Sales Operations Team'}
                   </h3>
                   <span className="text-[11px] text-slate-500 font-medium">
-                    Sales Operations & Governance Team • Quote {activeQuote.id}
+                    {matchedCompany.name} • Dedicated Account Collaboration Hub
                   </span>
                 </div>
               </div>
 
               <span className="text-xs font-bold px-2.5 py-1 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Online
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Operations Online
               </span>
             </div>
 
             <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/50">
               {quoteMessages.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 italic text-xs">
-                  No messages yet. Send a message below to start negotiating directly with {activeQuote.salesRep}.
+                  No messages yet. Send a message below to negotiate or consult directly with your sales representative.
                 </div>
               ) : (
                 quoteMessages.map((msg) => (
@@ -965,6 +980,11 @@ export const CustomerPortalView: React.FC = () => {
                       <span className="text-[10px] font-bold text-slate-500 uppercase">
                         {msg.senderName}
                       </span>
+                      {msg.quoteId && msg.quoteId !== 'General' && !msg.quoteId.startsWith('COMP-') && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 font-medium">
+                          {msg.quoteId}
+                        </span>
+                      )}
                       <span className="text-[10px] text-slate-400">{msg.timestamp}</span>
                     </div>
                     <div
@@ -981,17 +1001,50 @@ export const CustomerPortalView: React.FC = () => {
               )}
             </div>
 
+            {/* Quick Inquiry Chips */}
+            <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center gap-2 overflow-x-auto text-[11px]">
+              <span className="text-slate-400 font-semibold shrink-0">Quick Queries:</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setNewMessageText('Could we review the line item pricing and discount ceilings for our order?')
+                }
+                className="px-2.5 py-1 rounded-full bg-white border border-slate-200 hover:border-[#0176D3] hover:text-[#0176D3] text-slate-600 transition shrink-0 cursor-pointer"
+              >
+                Pricing Review
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setNewMessageText('Please confirm warehouse dispatch and estimated delivery timeline.')
+                }
+                className="px-2.5 py-1 rounded-full bg-white border border-slate-200 hover:border-[#0176D3] hover:text-[#0176D3] text-slate-600 transition shrink-0 cursor-pointer"
+              >
+                Delivery Status
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setNewMessageText('We have approved the quotation terms and are preparing purchase order confirmation.')
+                }
+                className="px-2.5 py-1 rounded-full bg-white border border-slate-200 hover:border-[#0176D3] hover:text-[#0176D3] text-slate-600 transition shrink-0 cursor-pointer"
+              >
+                Terms Approved
+              </button>
+            </div>
+
             <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-200 flex items-center gap-3">
               <input
                 type="text"
-                placeholder="Type your message or inquiry regarding quote terms..."
+                placeholder="Type your message or inquiry regarding commercial terms..."
                 value={newMessageText}
                 onChange={(e) => setNewMessageText(e.target.value)}
                 className="flex-1 p-3 rounded-lg bg-slate-50 border border-slate-300 text-xs text-slate-900 outline-none focus:border-[#0176D3] focus:bg-white font-medium"
               />
               <button
                 type="submit"
-                className="px-5 py-3 rounded-lg bg-[#0176D3] hover:bg-blue-700 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                disabled={!newMessageText.trim()}
+                className="px-5 py-3 rounded-lg bg-[#0176D3] hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Send className="w-4 h-4" /> Send Message
               </button>

@@ -19,6 +19,7 @@ import {
   UserCheck,
   X,
   Camera,
+  MessageSquare,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { hasPermission, Permission } from '../../auth/permissions';
@@ -45,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
-  const { userRole, activeView, setActiveView, setSelectedQuoteId, quotes, anomalies, logout, currentUser, setIsProfileModalOpen } =
+  const { userRole, activeView, setActiveView, setSelectedQuoteId, quotes, anomalies, logout, currentUser, setIsProfileModalOpen, messages } =
     useAppStore();
 
   const pendingApprovalsCount = quotes.filter(
@@ -53,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ).length;
 
   const activeAnomaliesCount = anomalies.filter((a: DealAnomaly) => !a.isResolved).length;
+  const customerMessagesCount = messages.length;
 
   // Define nav sections based on permissions
   const isCustomer = userRole === 'customer';
@@ -61,6 +63,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
     { id: 'pipeline', label: 'Sales Pipeline', icon: Kanban, permission: 'pipeline.view' },
     { id: 'builder', label: 'Quotations', icon: FilePlus2, permission: 'quotations.view' },
+    {
+      id: 'messages',
+      label: 'Customer Messages',
+      icon: MessageSquare,
+      badge: customerMessagesCount > 0 ? customerMessagesCount : undefined,
+      badgeColor: 'bg-[#0176D3] text-white',
+      permission: 'messages.view',
+    },
     { id: 'products', label: 'Products', icon: Package, permission: 'products.view' },
   ];
 

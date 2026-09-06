@@ -180,18 +180,18 @@ export const QuoteBuilderView: React.FC = () => {
               </button>
             )}
 
-            {userRole === 'admin' && activeQuote.status === 'Draft' && (
+            {userRole === 'admin' && (
               <button
+                type="button"
                 onClick={() => {
-                  if (confirm(`Delete draft quotation ${activeQuote.id} (${activeQuote.companyName})? This cannot be undone.`)) {
-                    deleteQuote(activeQuote.id);
-                    setActiveView('pipeline');
-                  }
+                  deleteQuote(activeQuote.id);
+                  setSelectedQuoteId(null);
+                  setActiveView('builder');
                 }}
                 className="px-3.5 py-2 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
-                title="Admin Delete Draft Quote"
+                title="Admin Delete Quote"
               >
-                <Trash2 className="w-4 h-4 text-rose-600" /> Delete Draft
+                <Trash2 className="w-4 h-4 text-rose-600" /> Delete Quote
               </button>
             )}
 

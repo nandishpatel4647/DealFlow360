@@ -60,6 +60,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileSidebar }) => {
     pipeline: { title: 'Quotations Pipeline', category: 'Main Navigation' },
     quotations: { title: 'Quotations Pipeline', category: 'Main Navigation' },
     builder: { title: selectedQuoteId ? `Quotation Builder (${selectedQuoteId})` : 'Quotation Builder', category: 'Main Navigation' },
+    messages: { title: 'Customer Messages & Collaboration', category: 'Main Navigation' },
     products: { title: 'Product Catalog', category: 'Main Navigation' },
     approvals: { title: 'Approvals & Governance', category: 'Operations & Workflow' },
     fulfillment: { title: 'Warehouse Fulfillment', category: 'Operations & Workflow' },

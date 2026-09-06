@@ -136,7 +136,7 @@ export const QuoteKanbanView: React.FC<QuoteKanbanViewProps> = ({ forcedMode }) 
             onClick={() => setIsCustomerModalOpen(true)}
             className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white transition flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <Plus className="w-4 h-4" /> + New Quotation
+            <Plus className="w-4 h-4" /> New Quotation
           </button>
         )}
       </div>
@@ -313,17 +313,15 @@ export const QuoteKanbanView: React.FC<QuoteKanbanViewProps> = ({ forcedMode }) 
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {userRole === 'admin' && q.status === 'Draft' && (
+                          {userRole === 'admin' && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`Are you sure you want to delete draft quotation ${q.id} (${q.companyName})?`)) {
-                                  deleteQuote(q.id);
-                                }
+                                deleteQuote(q.id);
                               }}
                               className="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 transition cursor-pointer text-[11px] flex items-center gap-1 shadow-2xs"
-                              title="Admin Delete Draft Quote"
+                              title="Admin Delete Quote"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Delete
                             </button>
@@ -414,17 +412,15 @@ export const QuoteKanbanView: React.FC<QuoteKanbanViewProps> = ({ forcedMode }) 
                       <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
                         <StatusBadge status={q.status} />
                         <div className="flex items-center gap-1.5">
-                          {userRole === 'admin' && q.status === 'Draft' && (
+                          {userRole === 'admin' && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`Are you sure you want to delete draft quotation ${q.id} (${q.companyName})?`)) {
-                                  deleteQuote(q.id);
-                                }
+                                deleteQuote(q.id);
                               }}
                               className="p-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
-                              title="Admin Delete Draft Quote"
+                              title="Admin Delete Quote"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>

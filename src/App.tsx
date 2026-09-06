@@ -17,6 +17,7 @@ import { DealHealthView } from './components/views/DealHealthView';
 import { ReportsView } from './components/views/ReportsView';
 import { AdminConfigView } from './components/views/AdminConfigView';
 import { ProductsView } from './components/views/ProductsView';
+import { MessagesView } from './components/views/MessagesView';
 import { ProfileSettingsModal } from './components/modals/ProfileSettingsModal';
 
 import { ProtectedRoute } from './auth/ProtectedRoute';
@@ -86,8 +87,14 @@ const AppContent: React.FC = () => {
         );
       case 'products':
         return (
-          <ProtectedRoute permission="quotations.view">
+          <ProtectedRoute permission="products.view">
             <ProductsView />
+          </ProtectedRoute>
+        );
+      case 'messages':
+        return (
+          <ProtectedRoute permission="messages.view">
+            <MessagesView />
           </ProtectedRoute>
         );
       case 'approvals':

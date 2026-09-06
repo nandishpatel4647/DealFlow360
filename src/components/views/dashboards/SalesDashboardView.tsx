@@ -53,7 +53,7 @@ export const SalesDashboardView: React.FC = () => {
             }}
             className="px-4 py-2 rounded-lg text-xs font-bold bg-[#0176D3] hover:bg-blue-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4" /> + New Quotation
+            <PlusCircle className="w-4 h-4" /> New Quotation
           </button>
         </div>
       </div>
