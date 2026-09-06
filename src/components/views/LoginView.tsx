@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, ArrowRight, ArrowLeft, KeyRound, AlertCircle, UserPlus, Building, User, Sparkles, CheckCircle2, Database } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, ArrowLeft, KeyRound, AlertCircle, UserPlus, Building, User, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { DEMO_USERS, findDemoUser, DemoUser, ROLE_DEFAULT_AVATARS } from '../../auth/demoUsers';
 import { UserRole, Company } from '../../types';
@@ -10,7 +10,7 @@ interface LoginViewProps {
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding }) => {
-  const { login, loginAsCustomer, users, addUser, addCompany, setActiveView, getCustomAvatar, isPostgresConnected } = useAppStore();
+  const { login, loginAsCustomer, users, addUser, addCompany, setActiveView, getCustomAvatar } = useAppStore();
 
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [activeTab, setActiveTab] = useState<'internal' | 'customer'>('internal');
@@ -72,6 +72,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding }) => {
     setErrorMessage(null);
     if (!signupName || !signupEmail || !signupPassword) {
       setErrorMessage('Please fill in all required signup fields.');
+      return;
+    }
+
+    // Password validation: minimum 8 characters, must contain letter and number
+    if (signupPassword.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
+      return;
+    }
+
+    const hasLetter = /[a-zA-Z]/.test(signupPassword);
+    const hasDigit = /[0-9]/.test(signupPassword);
+    if (!hasLetter || !hasDigit) {
+      setErrorMessage('Password must contain at least one letter and one number.');
       return;
     }
 
@@ -200,12 +213,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding }) => {
         </button>
 
         <div className="flex items-center gap-2">
-          {isPostgresConnected && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-[11px] font-bold text-emerald-300 backdrop-blur-md">
-              <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <span>PostgreSQL 18 Connected</span>
-            </div>
-          )}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-950/80 border border-blue-800/50 text-[11px] font-semibold text-blue-200 backdrop-blur-md">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <span>Multi-Role Gateway • RBAC Active</span>
@@ -584,18 +591,41 @@ export const LoginView: React.FC<LoginViewProps> = ({ onBackToLanding }) => {
                   )}
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Password</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block font-bold text-slate-700">Password</label>
+                      <span className="text-[10px] text-slate-400 font-medium">Min. 8 characters (letters & digits)</span>
+                    </div>
                     <div className="relative">
                       <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                       <input
                         type="password"
                         required
-                        placeholder="Create password"
+                        minLength={8}
+                        placeholder="Create password (e.g. Pass1234)"
                         value={signupPassword}
                         onChange={(e) => setSignupPassword(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 outline-none"
+                        className={`w-full pl-9 pr-3 py-2 rounded-lg border text-xs outline-none transition ${
+                          signupPassword
+                            ? signupPassword.length >= 8 && /[a-zA-Z]/.test(signupPassword) && /[0-9]/.test(signupPassword)
+                              ? 'border-emerald-400 focus:border-emerald-500 ring-emerald-100'
+                              : 'border-amber-400 focus:border-amber-500 ring-amber-100'
+                            : 'border-slate-300 focus:border-blue-500'
+                        }`}
                       />
                     </div>
+                    {signupPassword && (
+                      <div className="mt-1.5 flex items-center gap-3 text-[10px]">
+                        <span className={`flex items-center gap-1 font-semibold ${signupPassword.length >= 8 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {signupPassword.length >= 8 ? '✓ 8+ chars' : '• 8+ chars'}
+                        </span>
+                        <span className={`flex items-center gap-1 font-semibold ${/[a-zA-Z]/.test(signupPassword) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {/[a-zA-Z]/.test(signupPassword) ? '✓ Letters' : '• Letters'}
+                        </span>
+                        <span className={`flex items-center gap-1 font-semibold ${/[0-9]/.test(signupPassword) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          {/[0-9]/.test(signupPassword) ? '✓ Numbers' : '• Numbers'}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <button
