@@ -102,10 +102,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     items.filter((item) => hasPermission(userRole, item.permission));
 
   const roleDisplayNames: Record<UserRole, { title: string; badgeBg: string }> = {
-    sales_rep: { title: 'Sales Rep (P. Mehta)', badgeBg: 'bg-blue-600' },
-    sales_manager: { title: 'Sales Manager (M. Shah)', badgeBg: 'bg-purple-600' },
-    finance: { title: 'Finance & Ops (R. Iyer)', badgeBg: 'bg-emerald-600' },
-    customer: { title: 'Customer Portal (Acme)', badgeBg: 'bg-indigo-600' },
+    sales_rep: { title: currentUser?.name ? `Sales Rep (${currentUser.name.split(' ')[0]})` : 'Sales Rep (P. Mehta)', badgeBg: 'bg-blue-600' },
+    sales_manager: { title: currentUser?.name ? `Sales Manager (${currentUser.name.split(' ')[0]})` : 'Sales Manager (M. Shah)', badgeBg: 'bg-purple-600' },
+    finance: { title: currentUser?.name ? `Finance & Ops (${currentUser.name.split(' ')[0]})` : 'Finance & Ops (R. Iyer)', badgeBg: 'bg-emerald-600' },
+    customer: { title: currentUser?.name ? `Customer Portal (${currentUser.name})` : 'Customer Portal', badgeBg: 'bg-indigo-600' },
     admin: { title: 'Administrator', badgeBg: 'bg-slate-700' },
   };
 

@@ -832,11 +832,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     initialSaved?.configPolicy || DEFAULT_CONFIG_POLICY
   );
   const [anomalies, setAnomalies] = useState<DealAnomaly[]>(() => {
-    if (!initialSaved?.anomalies) return scanDealAnomalies(SEED_QUOTES);
+    if (!initialSaved?.anomalies) return scanDealAnomalies(SEED_QUOTES, SEED_COMPANIES);
     const ids = initialSaved.anomalies.map((a: DealAnomaly) => a.id);
     const hasDuplicateIds = new Set(ids).size !== ids.length;
     if (hasDuplicateIds) {
-      return scanDealAnomalies(SEED_QUOTES);
+      return scanDealAnomalies(SEED_QUOTES, SEED_COMPANIES);
     }
     return initialSaved.anomalies;
   });
@@ -883,6 +883,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     anomalies,
     messages,
   ]);
+
+  // Re-scan deal anomalies whenever quotes or companies change (data-driven)
+  useEffect(() => {
+    const freshAnomalies = scanDealAnomalies(quotes, companies);
+    // Preserve resolved status from existing anomalies
+    const resolvedIds = new Set(anomalies.filter((a) => a.isResolved).map((a) => `${a.quoteId}-${a.anomalyType}`));
+    const merged = freshAnomalies.map((a) => ({
+      ...a,
+      isResolved: resolvedIds.has(`${a.quoteId}-${a.anomalyType}`),
+    }));
+    setAnomalies(merged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quotes, companies]);
 
   // Realtime Broadcast Channel for cross-tab customer portal sync
   useEffect(() => {
@@ -1852,14 +1865,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           fulfillmentBlockReason: isCompliant ? undefined : 'Pending Finance Manager Approval',
         };
 
-        if (isCompliant) {
-          const existingInvoice = invoices.find((inv) => inv.quoteId === quoteId);
-          if (!existingInvoice) {
-            const { invoice, subscriptions: newSubs } = generateHybridBilling(updated);
-            setInvoices((invs) => [invoice, ...invs]);
-            setSubscriptions((subs) => [...newSubs, ...subs]);
-          }
-        }
+        // NOTE: Invoice is NOT generated here. It is ONLY generated through
+        // acceptFulfillment() after warehouse allocation is complete.
+        // This enforces: Fulfillment → Invoiced → Paid lifecycle.
 
         broadcastSync('QUOTE_UPDATED', { quote: updated });
         return updated;
@@ -1974,7 +1982,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setInvoices(SEED_INVOICES);
     setSubscriptions(SEED_SUBSCRIPTIONS);
     setAuditLogs(SEED_AUDIT_LOGS);
-    setAnomalies(scanDealAnomalies(SEED_QUOTES));
+    setAnomalies(scanDealAnomalies(SEED_QUOTES, SEED_COMPANIES));
     setConfigPolicy(DEFAULT_CONFIG_POLICY);
     setSelectedQuoteId('Q-1042');
     localStorage.removeItem(LOCAL_STORAGE_KEY);

@@ -31,6 +31,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'quotation.edit',
     'quotation.submit',
     'deal_health.view',
+    'reports.view',
   ],
   sales_manager: [
     'dashboard.view',
@@ -39,6 +40,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'approvals.view',
     'approvals.manager',
     'deal_health.view',
+    'reports.view',
   ],
   finance: [
     'dashboard.view',

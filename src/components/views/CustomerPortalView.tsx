@@ -141,7 +141,7 @@ export const CustomerPortalView: React.FC = () => {
     selectedQuoteForCustomer ||
     pendingCustomerQuote ||
     customerQuotes[0] ||
-    quotes[0];
+    null;
 
   // STRICT SECURITY FILTER: ONLY SHOW THIS PARTICULAR CUSTOMER'S INVOICES
   const customerInvoices = invoices.filter(
@@ -264,11 +264,11 @@ export const CustomerPortalView: React.FC = () => {
     e.preventDefault();
     if (!newMessageText.trim() || !activeQuote) return;
 
-    sendMessage(activeQuote.id, newMessageText, 'customer', `${matchedCompany.name} Procurement`);
+    sendMessage(activeQuote.id, newMessageText, 'customer', `${currentUser?.name || matchedCompany.name} (${matchedCompany.name})`);
     setNewMessageText('');
   };
 
-  const quoteMessages = messages.filter((m) => m.quoteId === (activeQuote?.id || 'Q-1040'));
+  const quoteMessages = messages.filter((m) => activeQuote && m.quoteId === activeQuote.id);
 
   if (!activeQuote) {
     return (
